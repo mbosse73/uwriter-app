@@ -1,8 +1,8 @@
 # U-Writer — Technische Projektdokumentation
 
 **Für:** Übergabe an Claude Code (Weiterentwicklung)
-**Stand:** 11.746 Zeilen, eine einzige Datei (`ulysses.html`), 362 JavaScript-Funktionen (inkl. Dateibibliothek, Abschnitt 8)
-**Letzte Prüfung:** JS-Syntax valide, keine offenen Fehler bekannt
+**Stand:** eine einzige Datei (`ulysses.html`), ~12.100 Zeilen, ~350 JavaScript-Funktionen (inkl. Dateibibliothek, Abschnitt 8)
+**Letzte Prüfung:** 2026-08-13 — JS-Syntax valide, Boot in jsdom fehlerfrei. Die in `ANALYSIS.md` beschriebenen Befunde wurden behoben; siehe dort für den Prüfumfang.
 
 ---
 
@@ -133,7 +133,9 @@ Diese Muster haben sich über die Entwicklung als notwendig herauskristallisiert
 Alle Overlays nutzen `onmousedown="_ovDownTarget=event.target"` + `onclick="if(event.target===this && _ovDownTarget===this)close...()"` statt reinem `onclick`. Reines `onclick===this` schließt das Overlay fälschlich, wenn eine Textauswahl über den Dialogrand hinausrutscht (mousedown innerhalb, mouseup/click außerhalb wird sonst fälschlich als „Klick auf Backdrop" gewertet).
 
 ### 6.2 Escape-Kaskade + `isAnyOverlayOpen()`
-Ein globaler `keydown`-Handler ruft bei Escape **alle** `close*()`-Funktionen unconditional auf (idempotent, harmlos wenn nicht offen). `isAnyOverlayOpen()` prüft eine Liste von ~25 Overlay-IDs auf die `.visible`-Klasse (plus Sonderfall `#findBar` mit inline `display`) — wird für den Zen-Modus-Escape-Schutz genutzt (Escape soll bei offenem Dialog NUR diesen schließen, nicht zusätzlich den Zen-Modus verlassen). **Bei neuem Overlay: zur Liste in `isAnyOverlayOpen()` UND zur Escape-Kaskade hinzufügen.**
+Ein globaler `keydown`-Handler ruft bei Escape **alle** `close*()`-Funktionen unconditional auf (idempotent, harmlos wenn nicht offen). `isAnyOverlayOpen()` prüft eine Liste von ~28 Overlay-IDs auf die `.visible`-Klasse — wird für den Zen-Modus-Escape-Schutz genutzt (Escape soll bei offenem Dialog NUR diesen schließen, nicht zusätzlich den Zen-Modus verlassen). **Bei neuem Overlay: zur Liste in `isAnyOverlayOpen()` UND zur Escape-Kaskade hinzufügen.**
+
+Die In-Dokument-Suche ist kein Overlay mehr: sie wurde in den rechten Panel-Bereich überführt, `isAnyOverlayOpen()` erkennt sie über `outlinePanel` + `rightPanelTab === 'search'`. Ältere Fassungen dieses Dokuments beschrieben hier einen `#findBar`-Sonderfall mit inline `display` — den gibt es nicht mehr.
 
 ### 6.3 Kein `innerHTML`-Rebuild bei `mouseenter`
 Gefundener und behobener Bugklasse: `onmouseenter="...;render...()"` zerstört das DOM-Element unter dem Mauszeiger, was nachfolgende Klicks auf dasselbe Element verschluckt (mousedown auf altem Knoten, click auf neuem — Browser verwirft). Lösung: leichtgewichtige Funktionen wie `gsSetSelected(idx)`/`cmdSetSelected(idx)`, die nur `classList.toggle('selected', ...)` auf bestehenden Knoten setzen, niemals `innerHTML` neu bauen.
@@ -172,6 +174,16 @@ Frühere Implementierung nutzte `textContent`→`innerHTML`-Roundtrip, escaped z
 
 ---
 
+### 6.10 `safeUrl()` für jede URL, die in ein `href` läuft
+Dokumente sind nicht immer selbst geschrieben: importierte `.md`-Dateien, weitergegebene Bausteine und Treffer aus der Dateibibliothek sind Fremdinhalt. Ein Markdown-Link `[x](javascript:…)` landete früher unverändert im `href` — ein Klick in der Vorschau führte damit Code mit vollem Zugriff auf den `localStorage` (also auf alle Dokumente) aus. `safeUrl(url)` lässt nur `http`, `https`, `mailto`, `tel`, `ftp` sowie relative Pfade und Anker durch und verwirft alles andere; `safeLinkHtml(url, labelHtml, extraAttr)` baut daraus das `<a>`-Tag oder — bei verworfener URL — den reinen Linktext. **Jede neue Stelle, die ein `href` oder `src` aus Dokumentinhalt baut, muss hier durch.** Der Textinhalt bleibt zusätzlich Aufgabe von `escHtml()` (6.8) — die beiden ersetzen einander nicht.
+
+Ebenfalls geteilt: `MD_LINK_RE` / `MD_IMAGE_RE` mit `MD_URL_PATTERN`. Das frühere `([^)]+)` brach jede URL mit Klammer ab (Wikipedia-Links); die gemeinsame Definition erlaubt eine Ebene verschachtelter Klammerpaare und gilt für alle drei Pipelines.
+
+### 6.11 Barrierefreiheit wird zur Laufzeit ergänzt, nicht ins Markup geschrieben
+`applyA11y(container)` setzt `aria-label` (aus `data-tooltip`), `role="button"` + `tabindex="0"` (für anklickbare `div`/`span`) und `role="dialog"` + `aria-modal` (für Overlay-Panels). Aufgerufen einmal beim Start und danach automatisch über `watchA11y()` — je ein `MutationObserver` pro Bedien-Container (`#sidebar`, `#sheetlist`, `#outlinePanel`, `#topNav`, alle `[id$="Overlay"]`), auf ein Bild pro Frame gedrosselt. **Neue Bedienelemente brauchen deshalb keine ARIA-Attribute im Markup** — sie werden erfasst, sobald sie im DOM stehen. Bewusst ausgenommen: `#editor`/`#preview` (Nutzerinhalt) und die Overlay-Hintergründe (deren `onclick` ist die Klick-daneben-Geste, kein Bedienelement — die Tastatur-Entsprechung ist die Escape-Kaskade 6.2). Ein delegierter `keydown`-Handler bildet Enter/Leertaste auf `click()` ab, damit die vergebene Rolle auch hält, was sie verspricht.
+
+---
+
 ## 8. Dateibibliothek (doclib-Kompatibilität)
 
 Zusätzlich zum lokalen State (Abschnitt 2) gibt es einen zweiten, unabhängigen Persistenzweg: Blätter lassen sich als eigenständige `.md`-Datei + Sidecar-JSON in einen frei wählbaren Ordner exportieren bzw. aus einem solchen Ordner durchsucht und importiert werden. Dieser Ordner-Mechanismus ist **bewusst kompatibel** mit `doclib.html` (separates Schwesterprojekt, `../doclib/doclib.html`), einer Offline-Dokumentenbibliothek mit demselben Sidecar-/Index-Cache-Format — ein Ordner lässt sich wahlweise mit doclib oder mit U-Writer bearbeiten, ohne dass eines der beiden Programme die Daten des anderen zerstört. **Nicht zu verwechseln mit der Bausteinbibliothek** (`state.contentBlocks`, `openContentLibrary()`, Icon 🧩) — komplett getrenntes Konzept, siehe Abschnitt 4; die Dateibibliothek nutzt durchgängig das Icon 🗂.
@@ -206,11 +218,11 @@ Eigener IndexedDB-Key `'fileLibraryDir'` im selben Store `ulysses_handles`, den 
 
 ## 9. Bekannte offene Punkte / technische Schulden
 
-1. **Barrierefreiheit:** Keine `aria-label`/`role`-Attribute im gesamten Programm. `data-tooltip` ist rein visuell, für Screenreader unsichtbar.
+1. **Barrierefreiheit — Grundlage gelegt, nicht abgeschlossen:** Rollen, Fokussierbarkeit, Beschriftungen und Tastaturaktivierung kommen seit 2026-08 zur Laufzeit über `applyA11y()` (6.11). Nicht abgedeckt: Fokusfalle innerhalb offener Dialoge, sinnvolle Fokus-Rückgabe beim Schließen, `aria-expanded`/`aria-selected` an Umschaltern, Kontrastprüfung der 6 Themes, Prüfung mit einem echten Screenreader.
 2. **Mobile/Touch:** Nur 3 `@media`-Regeln — Drei-Spalten-Layout auf schmalen Bildschirmen nicht vorgesehen.
-3. **Kein automatisierter Test-Suite:** Alle Verifikationen dieser Entwicklungshistorie liefen als Ad-hoc-jsdom-Skripte (Node + jsdom, manuell geschrieben, nach Gebrauch gelöscht) — **keine** persistente Test-Datei im Projekt. Für Claude Code empfehlenswert: eine dauerhafte Test-Suite aus diesen Mustern aufbauen.
-4. **Bildkompression ungeprüft:** Kein verifizierter Kompressions-/Größenschwellenwert für eingefügte Bilder gefunden; Base64-Speicherung in `localStorage` kann bei mehreren großen Bildern an Browser-Speichergrenzen stoßen (Warnung existiert nur bei `QuotaExceededError`, nicht präventiv).
-5. **Performance bei sehr vielen Blättern:** `renderSheetList()` baut vermutlich bei jeder Änderung die komplette Liste neu — bei einigen hundert Dokumenten ungetestet, potenziell Kandidat für Virtualisierung.
+3. **Kein automatisierter Test-Suite:** Alle Verifikationen liefen bisher als Ad-hoc-jsdom-Skripte (Node + jsdom, manuell geschrieben, nach Gebrauch gelöscht) — **keine** persistente Test-Datei im Projekt. Die wiederverwendbaren Muster stehen in `CLAUDE.md` („Commands"); eine dauerhafte Suite daraus zu bauen, ist die größte offene Einzelverbesserung (`ANALYSIS.md`, V-1).
+4. **Bildkompression ungeprüft:** Kein verifizierter Kompressions-/Größenschwellenwert für eingefügte Bilder gefunden (nur eine 5-MB-Grenze pro Bild); Base64-Speicherung in `localStorage` kann bei mehreren großen Bildern an Browser-Speichergrenzen stoßen. Die Auto-Sicherung schreibt seit 2026-08 nur noch bei tatsächlicher Änderung, was die Enge entschärft, aber nicht behebt (Backlog LH-15).
+5. **Performance bei sehr vielen Blättern:** `renderSheetList()` baut bei jeder Änderung die komplette Liste neu (2 `innerHTML`-Zuweisungen, keine Virtualisierung) — bei einigen hundert Dokumenten ungetestet. Vor einem Umbau messen, nicht auf Verdacht optimieren.
 6. **Keine Mehrgeräte-/Cloud-Synchronisation:** Architektonisch bewusst (Offline-Vorgabe), aber ohne Hinweis in der Hilfe, dass Backups der einzige Übertragungsweg zwischen Geräten sind.
 7. **Inhaltsverzeichnis fehlt im PDF-Export:** Gliederung existiert intern, wird aber nicht automatisch als Inhaltsverzeichnis mitexportiert.
 
@@ -234,6 +246,7 @@ Aus Produktgesprächen im Verlauf der Entwicklung, noch nicht implementiert:
 ## 11. Empfehlung für den Einstieg
 
 1. Datei öffnen, `<style>`-Block (CSS-Variablen, Zeile ~1–130) und `<script>`-Block-Anfang (State-Definition, `defaultState`) zuerst lesen.
-2. Bei jeder Änderung: JS-Syntax-Check via `node -e '...compileFunction...'` (siehe Muster in dieser Historie) VOR jeder funktionalen Prüfung.
-3. Bei UI-/Interaktions-Änderungen: mit jsdom (`npm install jsdom` in einem Scratch-Verzeichnis, `runScripts:'dangerously'`) echte `MouseEvent`/`KeyboardEvent`-Sequenzen simulieren — reine Funktionsaufrufe verschleiern die in Abschnitt 6.3–6.5 beschriebenen Bugklassen zuverlässig.
-4. Nach jeder Änderung: fertige Datei nach `/mnt/user-data/outputs/` kopieren und dem Nutzer bereitstellen — nie nur im Arbeitsverzeichnis belassen.
+2. Bei jeder Änderung: JS-Syntax-Check VOR jeder funktionalen Prüfung — genauer Befehl in `CLAUDE.md`, Abschnitt „Commands".
+3. Bei UI-/Interaktions-Änderungen: mit jsdom (`npm install jsdom` in einem Scratch-Verzeichnis **außerhalb des Repos**, `runScripts:'dangerously'`) echte `MouseEvent`/`KeyboardEvent`-Sequenzen simulieren — reine Funktionsaufrufe verschleiern die in Abschnitt 6.3–6.5 beschriebenen Bugklassen zuverlässig.
+4. Bei Renderer-Änderungen: dasselbe Fixture durch **alle drei** Pipelines schicken (Abschnitt 5) — sie sind getrennte Implementierungen, eine Korrektur in einer wirkt nicht in den anderen.
+5. Abschluss: die Definition of Done in `CLAUDE.md` durchgehen. Das Ergebnis ist der Commit im Repo — es gibt kein separates Ausgabeverzeichnis (frühere Fassungen nannten hier `/mnt/user-data/outputs/`, ein Pfad aus einer anderen Arbeitsumgebung).

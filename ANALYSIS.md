@@ -5,7 +5,7 @@
 **Analysierte Version:** `ulysses.html`, 11.925 Zeilen (~500 KB), Commit `d52a85d`
 **Methodik:** statische Auswertung (Regex-/Struktur-Scans über die Gesamtdatei) plus Laufzeitprüfung in jsdom (`runScripts:'dangerously'`, echtes `DOMContentLoaded`, direkte Aufrufe der Render-Pipelines mit Fixtures). Alle mit **[verifiziert]** markierten Befunde wurden zur Laufzeit reproduziert, nicht nur aus dem Quelltext gelesen.
 
-> Dieses Dokument hält die Ergebnisse fest. Es wurden **keine Code-Änderungen** an `ulysses.html` vorgenommen — sämtliche Korrekturvorschläge warten auf ausdrückliche Freigabe.
+> **Bearbeitungsstand 2026-08-13:** Die Analyse (Abschnitte 1–2) beschreibt den Zustand **vor** der Korrektur. Sämtliche Befunde aus Abschnitt 2 wurden anschließend freigegeben und behoben — die Kopfzeile jedes Befunds nennt den Stand. Was tatsächlich geprüft wurde, steht in Abschnitt 6. Abschnitt 3 (Verbesserungs- und Erweiterungsvorschläge) ist davon unberührt und weiterhin offen.
 
 ---
 
@@ -40,6 +40,8 @@ Die Anwendung ist **eine einzige Datei**. Alles andere ist Dokumentation, Refere
 | `package.json` | 13 | Leerer Stub — **widerspricht der Zero-Dependency-Vorgabe**, siehe M-7 |
 | `README.md` | 1 | Nur der Projektname |
 | *(fehlt)* | — | `.gitignore` — siehe M-8 |
+
+*(Stand vor der Korrektur. Backup-Kopien und `package.json` sind inzwischen entfernt, `.gitignore` und `README.md` ergänzt — siehe Abschnitt 6.)*
 
 ### 1.3 Innerer Aufbau von `ulysses.html`
 
@@ -108,7 +110,7 @@ Priorisierung: **kritisch** = Datenverlust oder Codeausführung möglich · **mi
 
 ### 2.1 Kritisch
 
-#### K-1 — `loadState()` verwirft beschädigte Daten kommentarlos
+#### K-1 — `loadState()` verwirft beschädigte Daten kommentarlos · **BEHOBEN**
 `ulysses.html:4231–4240`
 
 ```js
@@ -124,7 +126,7 @@ Ist der `localStorage`-Eintrag beschädigt (abgebrochener Schreibvorgang bei vol
 *Auswirkung:* vollständiger, unbemerkter Verlust aller Dokumente.
 *Vorschlag:* im `catch` den Rohwert unter einem Ausweichschlüssel sichern (`ulysses_app_data_corrupt_<ts>`), eine deutliche Meldung anzeigen und den Restore-Dialog anbieten, statt kommentarlos weiterzulaufen.
 
-#### K-2 — `saveState()` meldet nur Quota-Fehler
+#### K-2 — `saveState()` meldet nur Quota-Fehler · **BEHOBEN**
 `ulysses.html:4242–4250`
 
 ```js
@@ -138,7 +140,7 @@ Jeder andere Fehler — `localStorage` in bestimmten Browser-/Privatmodi nicht v
 *Auswirkung:* stiller Totalverlust der Sitzung.
 *Vorschlag:* `else`-Zweig mit generischer Fehlermeldung (`toast('⚠ Speichern fehlgeschlagen — bitte Backup herunterladen')`), zusätzlich einmaliger Verfügbarkeitstest von `localStorage` beim Start.
 
-#### K-3 — Ungeprüfte URL-Schemata in Markdown-Links → ausführbares `javascript:` **[verifiziert]**
+#### K-3 — Ungeprüfte URL-Schemata in Markdown-Links → ausführbares `javascript:` **[verifiziert]** · **BEHOBEN**
 `renderMarkdown` Schritt 10b, analog in `renderStyledHtml`
 
 ```js
@@ -161,36 +163,36 @@ Der Textinhalt wird korrekt über `escHtml()` maskiert (ein Attribut-Ausbruch ü
 
 ### 2.2 Mittel
 
-#### M-1 — Link-Regex bricht bei Klammern in der URL **[verifiziert]**
+#### M-1 — Link-Regex bricht bei Klammern in der URL **[verifiziert]** · **BEHOBEN**
 `([^)]+)` endet an der ersten schließenden Klammer. `[Titel](https://de.wikipedia.org/wiki/Fuge_(Musik))` erzeugt einen abgeschnittenen, toten Link plus ein übriggebliebenes `)` im Text — im obigen Testlauf gut sichtbar. Betrifft alle drei Pipelines.
 *Vorschlag:* balancierte Klammern zulassen (`(?:[^()]|\([^()]*\))+`) oder `<…>`-Notation unterstützen.
 
-#### M-2 — Standard-Markdown-Bilder werden nirgends dargestellt **[verifiziert]**
+#### M-2 — Standard-Markdown-Bilder werden nirgends dargestellt **[verifiziert]** · **BEHOBEN**
 Nur die interne Form `![alt](img:id "caption" =50%)` wird gerendert. Ein importiertes Dokument mit `![Diagramm](bilder/plan.png)` zeigt in **allen** Ausgabewegen die rohe Syntax als Text — ohne Hinweis, dass das Bild nicht eingebettet ist.
 *Vorschlag:* entweder externe Pfade als `<img>` mit Platzhalter/Fehlerbehandlung rendern, oder beim Import erkennen und dem Nutzer eine erklärende Meldung zeigen. Stillschweigendes Nichts-Tun ist die schlechteste der drei Varianten.
 
-#### M-3 — `undoStacks` wird beim Löschen eines Blatts nicht freigegeben
+#### M-3 — `undoStacks` wird beim Löschen eines Blatts nicht freigegeben · **BEHOBEN**
 `deleteSheet()` entfernt das Blatt aus `state.sheets`, lässt `undoStacks[id]` aber bestehen. Jeder Eintrag hält bis zu `UNDO_LIMIT = 150` vollständige Dokumentkopien im Speicher.
 *Auswirkung:* bei längeren Sitzungen mit vielen großen Dokumenten wächst der Speicherbedarf spürbar (150 × Dokumentgröße pro je berührtem Blatt). Kein Datenverlust, nur Speicher.
 *Vorschlag:* `delete undoStacks[id];` bei endgültiger Löschung.
 
-#### M-4 — Keine globale Fehlerbehandlung
+#### M-4 — Keine globale Fehlerbehandlung · **BEHOBEN**
 0 Treffer für `window.onerror` und `unhandledrejection`. Gleichzeitig rufen 232 `onclick=`-Attribute Funktionen direkt auf, darunter `async`-Funktionen (`exportSheetToFileLibrary`, `pickFileLibImportDirectory`, `downloadBackup`). Eine abgelehnte Promise oder eine geworfene Ausnahme landet ausschließlich in der Browser-Konsole — die die Zielgruppe dieser App nie öffnet. Vier `async`-Funktionen haben zudem selbst kein `try` (`downloadBackup`, `writeLibSidecar`, `scanFileLibrary`, `resolveLibDirHandle`); sie werden zwar überwiegend aus abgesicherten Aufrufern heraus verwendet, aber nicht durchgängig.
 *Vorschlag:* je ein `window.addEventListener('error', …)` und `('unhandledrejection', …)` mit `toast()`-Ausgabe. Sehr kleiner Eingriff, große Wirkung auf die Diagnosefähigkeit im Alltag.
 
-#### M-5 — Vielfache Zustandskopien im `localStorage`
+#### M-5 — Vielfache Zustandskopien im `localStorage` · **ENTSCHÄRFT**
 `createAutoBackup()` legt bis zu `BACKUP_MAX = 5` vollständige `JSON.stringify(state)`-Snapshots unter `ulysses_auto_backup` ab — zusätzlich zum Live-Zustand. Belegt werden also bis zu **sechs Kopien** desselben Datenbestands gegen ein Browser-Kontingent von typischerweise 5–10 MB. Bei vorhandenen Bildern greift bereits eine Absenkung auf 2 Snapshots, und im Quota-Fall wird ein bildfreier Ersatz-Snapshot geschrieben — die Grundmechanik bleibt aber teuer.
 *Vorschlag:* Snapshots differenziell oder nur bei tatsächlicher Änderung schreiben (Hash-Vergleich gegen den letzten Snapshot); Speicherverbrauch im Backup-Panel sichtbar machen (das Backlog sieht dafür bereits LH-16 vor).
 
-#### M-6 — Keinerlei Barrierefreiheit
+#### M-6 — Keinerlei Barrierefreiheit · **GRUNDLAGE GELEGT**
 0 Treffer für `aria-` und `role=` in 11.925 Zeilen. Bedienung erfolgt über `div`/`span` mit `onclick`, Tooltips ausschließlich über `data-tooltip` (rein visuell). Für ein Programm, das sich als Büro-Werkzeug positioniert, ist das eine harte Nutzungsgrenze und in vielen Organisationen ein Beschaffungshindernis.
 *Vorschlag:* schrittweise, beginnend bei den häufigsten Bedienelementen — `role="button"` + `tabindex="0"` + `aria-label` an Toolbar und Sidebar, `role="dialog"` + `aria-modal` an Overlays, `aria-live` für `toast()`.
 
-#### M-7 — `package.json` widerspricht der Kernvorgabe
+#### M-7 — `package.json` widerspricht der Kernvorgabe · **BEHOBEN**
 Die Datei existiert im Repo, obwohl `CLAUDE.md` und `PROJEKTDOKUMENTATION.md` das ausdrücklich ausschließen. Inhalt ist ein leerer `npm init -y`-Stub: `main: index.js` (existiert nicht), `test`-Skript bricht per Definition mit `exit 1` ab, keine Dependencies. Praktischer Schaden: `npm test` und `npm audit` erzeugen Fehler, die wie echte Projektprobleme aussehen; künftige Beitragende lesen daraus fälschlich eine Node-Toolchain.
 *Vorschlag:* ersatzlos entfernen. **Wartet auf Freigabe.**
 
-#### M-8 — Kein `.gitignore`, ~1,4 MB Backup-Kopien versioniert
+#### M-8 — Kein `.gitignore`, ~1,4 MB Backup-Kopien versioniert · **BEHOBEN**
 Drei `ulysses.backup-*.html` (zusammen ~1,35 MB) liegen im Repo, obwohl git genau diese Aufgabe bereits erfüllt. Es gibt kein `.gitignore`, sodass `node_modules/` oder Scratch-Dateien beim nächsten Verifikationslauf versehentlich mitcommittet werden können.
 *Vorschlag:* `.gitignore` anlegen (`node_modules/`, `*.log`, `.DS_Store`, `ulysses.backup-*.html`); die vorhandenen Snapshots als git-Tags konservieren und aus dem Arbeitsbaum entfernen. **Wartet auf Freigabe.**
 
@@ -259,11 +261,11 @@ Aus dem Lastenheft ragen für das nächste Arbeitspaket heraus:
 
 ---
 
-## 4. Vorschläge zur Projekteinrichtung (Phase 5, nicht angewendet)
+## 4. Projekteinrichtung (Phase 5) — **umgesetzt**
 
-### 4.1 `.claude/settings.json` — Vorschlag, wartet auf Freigabe
+### 4.1 `.claude/settings.json`
 
-Ziel: die drei wiederkehrenden Verifikationsbefehle ohne Rückfrage erlauben, Schreibzugriffe aber weiterhin bestätigen lassen. Die Datei existiert derzeit **nicht** und wurde bewusst nicht angelegt.
+Ziel: die wiederkehrenden Verifikationsbefehle ohne Rückfrage erlauben, Schreibzugriffe aber weiterhin bestätigen lassen. Angelegt in dieser Form:
 
 ```json
 {
@@ -289,9 +291,9 @@ Ziel: die drei wiederkehrenden Verifikationsbefehle ohne Rückfrage erlauben, Sc
 
 Bewusst **nicht** in der Allowlist: `npm install` (soll im Repo nie laufen), `git commit`/`git push` (Freigabe pro Änderung erwünscht) und Schreibzugriff auf `ulysses.html` selbst.
 
-### 4.2 Repo-eigene Slash-Commands / Skills — Vorschlag
+### 4.2 Repo-eigene Slash-Commands
 
-Sinnvoll wären drei wiederkehrende Abläufe unter `.claude/commands/` (ebenfalls **nicht** angelegt). `START_HERE.md` merkt an, dass Custom Slash Commands nicht immer zuverlässig erkannt werden — die Dateien wären daher zusätzlich, nicht ersatzweise, als benannte Abläufe in `CLAUDE.md` zu führen:
+Drei wiederkehrende Abläufe liegen unter `.claude/commands/`. `START_HERE.md` merkt an, dass Custom Slash Commands nicht immer zuverlässig erkannt werden — die Verifikationsbefehle stehen deshalb zusätzlich (nicht ersatzweise) in `CLAUDE.md`:
 
 | Datei | Zweck |
 |---|---|
@@ -313,4 +315,55 @@ Ein eigenes *Skill* lohnt sich derzeit nicht: die Abläufe sind kurz und projekt
 
 ## 5. Offene Punkte
 
-Sämtliche oben genannten Korrekturen sind **Vorschläge**. An `ulysses.html` wurde in dieser Analyse **keine einzige Zeile geändert**. Vor einer Umsetzung ist eine ausdrückliche Freigabe erforderlich — sinnvollerweise gebündelt pro Vorschlagspaket (z. B. „V-2 + V-3 + V-4 umsetzen").
+Abschnitt 2 ist abgearbeitet. Offen und **noch nicht freigegeben** bleibt Abschnitt 3 (V-1, V-5, V-6-Rest, V-9-Rest, V-10 sowie die Funktionserweiterungen aus dem Lastenheft). Am wichtigsten davon: **V-1, eine dauerhafte Test-Suite** — die Prüfungen dieser Runde waren erneut Wegwerf-Skripte in einem Scratch-Verzeichnis, genau das Muster, das die Analyse als größte Einzelschwäche benennt.
+
+Nicht behandelte, bewusst stehen gelassene Punkte: G-7 (deutsch/englisch gemischte Bezeichner — gewachsen und in sich stimmig, eine nachträgliche Vereinheitlichung wäre ein großer Diff ohne Nutzen) und die in Abschnitt 6.3 aufgeführten Reste der Barrierefreiheit.
+
+---
+
+## 6. Umsetzung und Prüfung (2026-08-13)
+
+### 6.1 Was geändert wurde
+
+| Befund | Umsetzung |
+|---|---|
+| K-1 | `loadState()` sichert einen beschädigten Rohwert **vor** der Rückgabe des Standardzustands unter `ulysses_app_data_beschaedigt_<Zeitstempel>` und meldet das. Zusätzlich eigener Zweig für „`localStorage` gar nicht verfügbar" und eine Strukturprüfung (`Array.isArray(parsed.sheets)`), damit auch syntaktisch gültiger Unsinn auffällt. Da `loadState()` vor dem DOM läuft, wird die Meldung in `_bootWarning` geparkt und von `showBootWarning()` im `DOMContentLoaded`-Handler nachgereicht |
+| K-2 | `saveState()` meldet jeden Fehler, nicht nur Quota — mit Fehlernamen im Text. Über `_saveErrorShown` nur einmal, bis ein Speichern wieder gelingt (die Funktion läuft bei jedem Tastendruck) |
+| K-3 | Neue Helfer `safeUrl()` / `safeLinkHtml()`; erlaubt sind `http`, `https`, `mailto`, `tel`, `ftp` sowie relative Pfade und Anker. Steuerzeichen werden vor der Schemaprüfung entfernt (`java\tscript:` ist für Browser weiterhin `javascript:`). Angewendet in `renderMarkdown`, `formatInline` (Styled/PDF) und `confluenceInline`. Externe Links erhalten `rel="noopener noreferrer"` |
+| M-1 | Gemeinsame `MD_URL_PATTERN` / `MD_LINK_RE` / `MD_IMAGE_RE` mit einer Ebene verschachtelter Klammerpaare, für alle drei Pipelines |
+| M-2 | Standard-Markdown-Bilder werden als benannter Platzhalter „🖼 … — nicht eingebettet" dargestellt (CSS-Klasse `.img-external`, im Export inline gestylt, in Confluence kursiv). Bewusst **nicht** geladen: ein entferntes Bild würde die Offline-Zusage brechen. Die eingebettete `img:`-Form bleibt unberührt |
+| M-3 | `delete undoStacks[id]` beim endgültigen Löschen — in `deleteSheet()` und in `emptyTrash()` |
+| M-4 | `error`- und `unhandledrejection`-Handler auf `window`, so früh wie möglich registriert, mit 5-Sekunden-Zusammenfassung identischer Meldungen |
+| M-5 | `createAutoBackup()` bricht ab, wenn der serialisierte Zustand dem jüngsten Snapshot entspricht — identische Vollkopien verdrängen sonst ältere, tatsächlich unterschiedliche Stände |
+| M-6 | `applyA11y()` ergänzt `aria-label` (aus `data-tooltip`), `role="button"` + `tabindex="0"` und `role="dialog"` + `aria-modal`; `watchA11y()` zieht nachgerenderte Bereiche über je einen gedrosselten `MutationObserver` nach; ein delegierter `keydown`-Handler bildet Enter/Leertaste auf `click()` ab. `#toast` bekam `role="status"` + `aria-live="polite"` |
+| M-7 | `package.json` entfernt; `.gitignore` verhindert die Rückkehr |
+| M-8 | `.gitignore` angelegt; die drei `ulysses.backup-*.html` entfernt, der letzte Stand mit ihnen ist als Tag `backups-archiv-20260813` erhalten |
+| G-1 | `exportSheet()` und `resolveImageSrc()` entfernt |
+| G-2 | `hideCheatSheet()` in die Escape-Kaskade aufgenommen |
+| G-3, G-4 | `PROJEKTDOKUMENTATION.md` korrigiert (§6.2 `findBar`, §11 Ausgabepfad), dazu neue Abschnitte 6.10/6.11 für die beiden neuen Muster |
+| G-6 | `README.md` mit Einstieg, Datenhaltung und Doku-Wegweiser gefüllt |
+
+### 6.2 Wie geprüft wurde
+
+Alle Prüfungen in jsdom aus einem Scratch-Verzeichnis außerhalb des Repos.
+
+| Prüfung | Ergebnis |
+|---|---|
+| JS-Syntax | bestanden |
+| Boot mit `DOMContentLoaded` | 0 Fehler, 0 `console.error` |
+| K-1 mit absichtlich beschädigtem `localStorage` | Rettungsschlüssel angelegt, Rohwert unverändert erhalten, Warnung sichtbar |
+| K-2 mit sabotiertem `setItem` (`SecurityError`) | Meldung erscheint; zweiter Aufruf bleibt stumm |
+| K-3/M-1/M-2 als Fixture durch **alle drei** Pipelines | `javascript:`, `data:`, `vbscript:` verlieren die URL, Linktext bleibt; Wikipedia-URL mit Klammer vollständig; externes Bild als Platzhalter, eingebettetes Bild unverändert |
+| `safeUrl()` einzeln | 9 Fälle inkl. Groß-/Kleinschreibung und eingestreutem Tabulator |
+| M-4 | `unhandledrejection` erzeugt Meldung, Wiederholung wird unterdrückt |
+| M-5 | drei Aufrufe ohne Änderung erzeugen einen Snapshot |
+| M-3 | Blattlebenszyklus anlegen → tippen → Papierkorb → endgültig; anschließendes `undo()` wirft nicht |
+| Interaktion (Maus/Tastatur) | Klick ins Panel schließt nicht, Auswahl-Drag über den Rand schließt nicht, Backdrop-Klick schließt, Escape schließt (inkl. Cheat-Sheet), Enter aktiviert `role="button"`, Leertaste im Editor bleibt unangetastet |
+| A11y-Abdeckung | von 170 anklickbaren Elementen im statischen Markup sind 111 native Elemente, 23 Overlay-Hintergründe (bewusst ausgenommen), der Rest hat jetzt Rolle und Fokus; 24 Dialoge mit Beschriftung |
+| Offline-Vorgabe | `grep -nE '(src\|href)="https?://' ulysses.html` → 0 Treffer |
+
+Nicht prüfbar in jsdom und daher offen: `scrollIntoView` ist dort nicht implementiert (bekannte jsdom-Lücke, kein Programmfehler), ebenso `window.print()` und die File System Access API. Der PDF-Export und die Dateibibliothek wurden folglich nicht zur Laufzeit geprüft — dort wurde nur der geänderte Renderer-Pfad über Fixtures abgedeckt.
+
+### 6.3 Was bei M-6 bewusst offen bleibt
+
+Rollen, Fokussierbarkeit, Beschriftungen und Tastaturaktivierung sind da; das ist die Grundlage, nicht die fertige Barrierefreiheit. Offen bleiben: Fokusfalle innerhalb offener Dialoge, Fokus-Rückgabe an das auslösende Element beim Schließen, `aria-expanded`/`aria-selected` an Umschaltern und Registerkarten, Kontrastprüfung der 6 Themes in hell und dunkel sowie eine Prüfung mit einem echten Screenreader. Das ist eigenständige Arbeit und keine Nacharbeit an dieser Runde.

@@ -13,14 +13,16 @@ This **is** a git repository (remote `mbosse73/uwriter-app`, default branch `mai
 | Path | Role |
 |---|---|
 | `ulysses.html` | **The application.** The only file that ships. |
-| `ulysses.backup-YYYYMMDD-HHMMSS.html` (3×) | Historical snapshots, committed to git. Read-only reference — never edit, never treat as the app. |
 | `iawriter.html` | Separate sister app ("iA Writer Browser", ~736 KB, mostly an embedded base64 WOFF2 font). Reference for the iA-Writer export style; **not** part of U-Writer. |
 | `mockup-designguide-hell.html` / `-dunkel.html` | Static design-guide mockups (light/dark). Reference only. |
+| `README.md` | User-facing intro: how to start it, where the data lives. |
 | `PROJEKTDOKUMENTATION.md` | German technical handoff doc (data model, pipelines, bug classes). |
 | `LASTENHEFT_ERWEITERUNGEN.md` | Requirements backlog LH-01…LH-16 (what + why, not how). |
 | `ANALYSIS.md` | Findings of the 2026-08 onboarding analysis (architecture, defects, proposals). |
 | `START_HERE.md` | Onboarding-run instructions (6 phases). |
-| `package.json` | **Contradicts the zero-dependency constraint below.** Empty stub (`main: index.js` does not exist, `test` script exits 1). Slated for removal — see `ANALYSIS.md` M-7. Do not build on it. |
+| `.claude/commands/` | `/verify`, `/render-check`, `/neues-overlay` — the recurring workflows of this repo. |
+
+There is deliberately **no `package.json`** (removed 2026-08-13; `.gitignore` keeps it from coming back) and no committed `ulysses.backup-*.html` snapshots — the last commit that carried them is tagged `backups-archiv-20260813`. Git is the rollback mechanism; a second copy in the working tree is not.
 
 ## Hard architectural constraint — read this first
 
@@ -103,27 +105,23 @@ These are documented in `PROJEKTDOKUMENTATION.md` as classes of bugs that have a
 
 ## Known gaps
 
-Verified against the code on 2026-08-13; full write-up with severities in `ANALYSIS.md`.
+Analysed 2026-08-13; full write-up with severities in `ANALYSIS.md`. The defects found there (K-1…K-3, M-1…M-8, G-1…G-6) were **fixed the same day** — the sections below describe what still stands.
 
-**Defects (fix candidates, awaiting approval — see `ANALYSIS.md`)**
-- `loadState()` silently discards a corrupt `localStorage` payload and boots into an empty default state; the next `saveState()` then overwrites the still-recoverable raw data. Data-loss risk. (K-1)
-- `saveState()` reports only `QuotaExceededError`; every other write failure (unavailable storage, serialisation error) is silent, so the user keeps typing believing work is saved. (K-2)
-- Markdown links pass their URL into `href` unvalidated in `renderMarkdown` **and** `renderStyledHtml`, so `[x](javascript:…)` renders as a clickable script URL — reachable through imported `.md` files, content blocks, and file-library imports. (K-3)
-- The link regex `\(([^)]+)\)` truncates any URL containing `)` (e.g. Wikipedia links). (M-1)
-- Plain Markdown images `![alt](path.png)` render in no pipeline — only the internal `![alt](img:id …)` form does, so imported documents show raw syntax with no hint. (M-2)
-- `undoStacks[sheetId]` is never released when a sheet is permanently deleted; each entry holds up to `UNDO_LIMIT = 150` full document copies. (M-3)
-- No `window.onerror` / `unhandledrejection` handler at all, while ~230 `onclick=` attributes call functions directly — a rejected promise from an async handler is invisible to the user. (M-4)
-- `localStorage` holds the live state **plus** up to `BACKUP_MAX = 5` full state snapshots (`ulysses_auto_backup`), i.e. ~6× the state size against a 5–10 MB browser quota. (M-5)
+**Guard rails that came out of those fixes — don't undo them**
+- `loadState()` parks a corrupt payload under `ulysses_app_data_beschaedigt_<ts>` *before* returning defaults, and both it and `saveState()` report every failure via `toast()`. Never widen those `catch` blocks back into silence.
+- Every URL that reaches an `href`/`src` from document content goes through `safeUrl()`; `safeLinkHtml()` builds the tag. Applies to all three pipelines.
+- Link/image matching uses the shared `MD_LINK_RE` / `MD_IMAGE_RE` (built from `MD_URL_PATTERN`) — don't reintroduce a per-pipeline `([^)]+)`.
+- `applyA11y()` + `watchA11y()` add roles, focusability and labels at runtime; new controls need no ARIA markup, but their container must be one of the observed ones.
+- `window` has `error` and `unhandledrejection` handlers routing to `toast()`.
 
-**Accepted / architectural**
-- No accessibility attributes (`aria-*`, `role`) anywhere — 0 occurrences; tooltips are visual-only (`data-tooltip`).
+**Still open — accepted or architectural**
+- Accessibility is started, not finished: no focus trap in dialogs, no focus restore on close, no `aria-expanded`/`aria-selected` on toggles, no contrast audit of the 6 themes, never tested with a real screen reader.
 - Only 3 `@media` rules total; the 3-column layout isn't designed for narrow/mobile screens.
-- No persistent automated test suite (see Commands section above).
-- No preventive image compression; only a 5 MB per-image guard plus the reactive quota warning.
-- `renderSheetList()` rebuilds the full list on every change (verified: 2 `innerHTML` assignments, no virtualisation). Fine at current scale, untested at hundreds of sheets.
-- No multi-device/cloud sync (intentional, given the offline constraint) and no in-app messaging that manual backup is the only transfer path.
+- No persistent automated test suite (see Commands section above) — the largest single open improvement (`ANALYSIS.md` V-1).
+- No preventive image compression; only a 5 MB per-image guard plus the reactive quota warning (backlog LH-15).
+- `renderSheetList()` rebuilds the full list on every change (2 `innerHTML` assignments, no virtualisation). Fine at current scale, untested at hundreds of sheets — measure before optimising.
+- No multi-device/cloud sync (intentional, given the offline constraint). `README.md` now says so; the in-app help still doesn't.
 - PDF export has no auto-generated table of contents, despite an internal outline structure existing (backlog LH-12).
-- Two functions are defined but never referenced: `exportSheet()`, `resolveImageSrc()`.
 
 ## Backup & rollback
 

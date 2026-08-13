@@ -2167,6 +2167,16 @@ input, textarea { font-family: inherit; font-size: inherit; color: var(--text-pr
   font-family: -apple-system, 'Helvetica Neue', sans-serif;
 }
 
+/* Platzhalter für Bilder, die auf eine Datei ausserhalb des Blatts zeigen
+   (![alt](pfad.png) statt der eingebetteten img:id-Form). Wird nie geladen —
+   ein entferntes Bild würde die Offline-Zusage brechen. */
+#preview .img-external, .ep-preview-page .img-external {
+  display: inline-block;
+  padding: 2px 8px; border-radius: 4px;
+  border: 1px dashed var(--border-color, #8884);
+  color: var(--text-secondary); font-size: 13px; font-style: italic;
+}
+
 /* Image-insert popover */
 .img-popover-overlay {
   position: fixed; inset: 0; z-index: 1200;
@@ -3599,7 +3609,7 @@ input, textarea { font-family: inherit; font-size: inherit; color: var(--text-pr
 <div class="context-menu" id="contextMenu"></div>
 
 <!-- ═══ TOAST ═══ -->
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <!-- ═══ TABLE EDITOR MODAL ═══ -->
 <div class="table-editor-overlay" id="tableEditorOverlay" onmousedown="_ovDownTarget=event.target" onclick="if(event.target===this && _ovDownTarget===this)closeTableEditor()">
@@ -4179,6 +4189,38 @@ const STORAGE_KEY = 'ulysses_app_data';
    Prevents dialogs closing when a text selection drag ends outside the panel. */
 let _ovDownTarget = null;
 
+/* ═══════════════════════════════════════════════════
+   GLOBALE FEHLERBEHANDLUNG
+   Das Markup ruft über 230 Funktionen direkt aus onclick= auf, darunter
+   async-Funktionen. Ohne diese beiden Handler landet eine geworfene Ausnahme
+   oder eine abgelehnte Promise ausschließlich in der Browser-Konsole — die die
+   Zielgruppe dieses Programms nie öffnet. So bleibt wenigstens sichtbar, DASS
+   etwas schiefging. Möglichst früh registriert, damit auch Fehler während der
+   Initialisierung erfasst werden.
+   ═══════════════════════════════════════════════════ */
+let _lastErrorMsg = '';
+let _lastErrorAt = 0;
+
+function reportUnexpectedError(what, detail) {
+  const now = Date.now();
+  // Ein Fehler in einem Render- oder Tastatur-Pfad feuert leicht im
+  // Sekundentakt — identische Meldungen werden 5 s lang zusammengefasst.
+  if (what === _lastErrorMsg && now - _lastErrorAt < 5000) return;
+  _lastErrorMsg = what;
+  _lastErrorAt = now;
+  toast('⚠ Unerwarteter Fehler: ' + what, 6000);
+  console.error('[U-Writer]', what, detail);
+}
+
+window.addEventListener('error', (e) => {
+  reportUnexpectedError(e.message || 'Skriptfehler', e.error || e);
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason;
+  reportUnexpectedError((r && (r.message || r.name)) || String(r), r);
+});
+
 const KW_COLORS = [
   { id: 'red', hex: '#ff3b30', bg: 'rgba(255,59,48,0.14)', text: '#d32f2f' },
   { id: 'orange', hex: '#ff9500', bg: 'rgba(255,149,0,0.14)', text: '#e67e00' },
@@ -4226,26 +4268,163 @@ const defaultState = {
   keywordColors: { 'Hilfe': 'blue' },
 };
 
+/* loadState() läuft, bevor das DOM existiert — toast() ist dort noch nicht
+   benutzbar. Eine beim Laden entstandene Warnung wird deshalb hier geparkt und
+   vom DOMContentLoaded-Handler über showBootWarning() nachgereicht. */
+let _bootWarning = null;
+let _saveErrorShown = false;
+
 let state = loadState();
 
 function loadState() {
+  let raw = null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return { ...defaultState, ...parsed };
+    raw = localStorage.getItem(STORAGE_KEY);
+  } catch(e) {
+    // Speicher gar nicht verfügbar (privater Modus, restriktive file://-Regel).
+    // Das ist kein Datenverlust, aber alles Weitere wird nicht gespeichert —
+    // der Nutzer muss das wissen, bevor er zu schreiben anfängt.
+    _bootWarning = '⚠ Kein Zugriff auf den lokalen Speicher — Änderungen gehen beim Schließen verloren';
+    return JSON.parse(JSON.stringify(defaultState));
+  }
+
+  if (!raw) return JSON.parse(JSON.stringify(defaultState));
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.sheets)) {
+      throw new Error('Unerwartete Datenstruktur');
     }
-  } catch(e) { /* ignore */ }
-  return JSON.parse(JSON.stringify(defaultState));
+    return { ...defaultState, ...parsed };
+  } catch(e) {
+    // Beschädigte Daten NIE stillschweigend verwerfen: Erst den Rohwert unter
+    // einem eigenen Schlüssel sichern — sonst überschreibt der nächste
+    // saveState() (spätestens die Auto-Sicherung 3 s nach Start) die einzige
+    // noch reparierbare Kopie der Dokumente. Danach laut Bescheid sagen.
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const rescueKey = STORAGE_KEY + '_beschaedigt_' + stamp;
+    let rescued = false;
+    try {
+      localStorage.setItem(rescueKey, raw);
+      rescued = true;
+    } catch(e2) { /* Speicher voll — mehr als die Meldung bleibt nicht */ }
+    _bootWarning = rescued
+      ? '⚠ Gespeicherte Daten beschädigt. Rohdaten gesichert unter "' + rescueKey + '". Bitte Backup wiederherstellen (Veröffentlichen → Backup).'
+      : '⚠ Gespeicherte Daten beschädigt und nicht sicherbar. Bitte Backup wiederherstellen (Veröffentlichen → Backup).';
+    return JSON.parse(JSON.stringify(defaultState));
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   BARRIEREFREIHEIT
+   Das Markup bedient sich durchgehend anklickbarer <div>/<span> mit onclick=
+   und rein visueller data-tooltip-Beschriftungen — ohne Rolle, ohne
+   Tastaturfokus, ohne Beschriftung für Screenreader. Statt über 230 Attribute
+   von Hand zu pflegen (und bei jedem neuen Element zu vergessen), werden die
+   Attribute hier zur Laufzeit ergänzt: einmal beim Start für das statische
+   Markup und danach für nachgerenderte Bereiche über applyA11y(container).
+
+   Bewusst NICHT erfasst: Inhalte in #editor/#preview (dort steht Nutzertext,
+   keine Bedienelemente) und die Overlay-Hintergründe selbst — deren onclick
+   ist die Klick-daneben-zum-Schließen-Geste, kein Bedienelement. Für die
+   Tastatur übernimmt die Escape-Kaskade dieselbe Aufgabe.
+   ═══════════════════════════════════════════════════ */
+const A11Y_NATIVE_TAGS = ['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA', 'LABEL', 'SUMMARY'];
+
+function applyA11y(root) {
+  const scope = root || document;
+  if (!scope || !scope.querySelectorAll) return;
+
+  // Sichtbare Tooltips als Beschriftung übernehmen — data-tooltip ist bisher
+  // rein visuell und für einen Screenreader unsichtbar.
+  scope.querySelectorAll('[data-tooltip]:not([aria-label])').forEach(el => {
+    const label = el.getAttribute('data-tooltip');
+    if (label) el.setAttribute('aria-label', label);
+  });
+
+  scope.querySelectorAll('[onclick]').forEach(el => {
+    if (A11Y_NATIVE_TAGS.includes(el.tagName)) return;      // hat bereits Rolle und Fokus
+    if (el.closest('#editor, #preview')) return;            // Nutzerinhalt, kein Bedienelement
+    if (/-overlay$/.test(el.className || '') || /Overlay$/.test(el.id || '')) return; // Backdrop
+    if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+  });
+
+  // Dialogrollen: der Hintergrund ist das Overlay, der Dialog das Panel darin.
+  scope.querySelectorAll('[id$="Overlay"]').forEach(ov => {
+    const panel = ov.firstElementChild;
+    if (!panel || panel.hasAttribute('role')) return;
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    const heading = panel.querySelector('h1, h2, h3, [class$="-title"]');
+    if (heading && !panel.hasAttribute('aria-label')) {
+      panel.setAttribute('aria-label', (heading.textContent || '').trim().slice(0, 80));
+    }
+  });
+}
+
+/* Nachgerenderte Bereiche automatisch nachziehen. Über 60 Stellen bauen ihren
+   Inhalt per innerHTML neu auf; diese alle einzeln zu ergänzen wäre eine
+   Wartungslast, die beim nächsten neuen Panel wieder vergessen wird.
+   Beobachtet werden nur Container, die Bedienelemente enthalten — der
+   Editor-Pfad (Tippen, Highlight-Overlay, Statuszeile) bleibt außen vor.
+   Der Durchlauf ist pro Container auf ein Bild pro Frame gedrosselt. */
+function watchA11y() {
+  if (typeof MutationObserver === 'undefined') return;
+  const containers = ['sidebar', 'sheetlist', 'outlinePanel', 'topNav']
+    .map(id => document.getElementById(id))
+    .concat(Array.from(document.querySelectorAll('[id$="Overlay"]')))
+    .filter(Boolean);
+
+  containers.forEach(el => {
+    let queued = false;
+    new MutationObserver(() => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; applyA11y(el); });
+    }).observe(el, { childList: true, subtree: true });
+  });
+}
+
+/* Tastaturbedienung für alles, was applyA11y() zum Button erklärt hat:
+   Enter und Leertaste müssen dort dasselbe auslösen wie ein Klick. Delegiert,
+   damit auch nachgerenderte Elemente ohne weitere Registrierung funktionieren. */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const el = e.target;
+  if (!el || !el.getAttribute || el.getAttribute('role') !== 'button') return;
+  if (A11Y_NATIVE_TAGS.includes(el.tagName)) return;
+  e.preventDefault();
+  el.click();
+});
+
+/* Zeigt eine beim Start aufgelaufene Warnung an, sobald das DOM steht.
+   Länger sichtbar als ein normaler Toast — die Meldung ist folgenreich. */
+function showBootWarning() {
+  if (!_bootWarning) return;
+  const msg = _bootWarning;
+  _bootWarning = null;
+  toast(msg, 12000);
+  console.warn('[U-Writer]', msg);
 }
 
 function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    _saveErrorShown = false;
   } catch(e) {
+    // Nur einmal melden, bis ein Speichern wieder gelingt — saveState() läuft
+    // bei jedem Tastendruck, eine Meldung pro Anschlag wäre unbenutzbar.
+    if (_saveErrorShown) return;
+    _saveErrorShown = true;
     if (e.name === 'QuotaExceededError' || e.code === 22) {
-      toast('⚠ Speicher voll — Bilder entfernen oder Backup herunterladen');
+      toast('⚠ Speicher voll — Bilder entfernen oder Backup herunterladen', 8000);
+    } else {
+      // Früher wurde alles außer Quota verschluckt: der Nutzer schrieb weiter
+      // in der Annahme, gespeichert zu werden.
+      toast('⚠ Speichern fehlgeschlagen (' + (e.name || 'Fehler') + ') — bitte Backup herunterladen', 8000);
     }
+    console.error('[U-Writer] saveState fehlgeschlagen:', e);
   }
 }
 
@@ -5566,6 +5745,9 @@ function deleteSheet(id) {
   if (!s) return;
   if (s.groupId === '__trash') {
     state.sheets = state.sheets.filter(s => s.id !== id);
+    // Undo-Verlauf mitentfernen: jeder Eintrag hält bis zu UNDO_LIMIT (150)
+    // vollständige Dokumentkopien im Speicher, das Blatt gibt es nicht mehr.
+    delete undoStacks[id];
     toast('Endgültig gelöscht');
   } else {
     s.groupId = '__trash';
@@ -5599,6 +5781,7 @@ function emptyTrash() {
   if (!confirm(`${trashedIds.length} Blatt${trashedIds.length === 1 ? '' : 'ätter'} endgültig löschen? Das kann nicht rückgängig gemacht werden.`)) return;
 
   state.sheets = state.sheets.filter(s => s.groupId !== '__trash');
+  trashedIds.forEach(id => { delete undoStacks[id]; }); // Undo-Verlauf mitentfernen
   if (trashedIds.includes(state.activeSheetId)) state.activeSheetId = null;
   saveState();
   renderLibrary();
@@ -5837,6 +6020,12 @@ function saveCurrentSheet() {
 document.addEventListener('DOMContentLoaded', () => {
   const editor = document.getElementById('editor');
 
+  // Beim Laden aufgelaufene Warnung (beschädigter oder nicht erreichbarer
+  // Speicher) nachreichen — loadState() lief, bevor es ein DOM gab.
+  showBootWarning();
+  applyA11y();
+  watchA11y();
+
   editor.addEventListener('input', () => {
     const sheet = state.sheets.find(s => s.id === state.activeSheetId);
     if (!sheet) return;
@@ -5952,6 +6141,7 @@ document.addEventListener('DOMContentLoaded', () => {
       closeAnnotationPopover();
       closeFootnotePopover();
       closeFindBar();
+      hideCheatSheet();
       closeFileLibExportPanel();
       closeFileLibImportPanel();
       if (document.getElementById('exportOverlay').classList.contains('visible')) {
@@ -6355,8 +6545,20 @@ function renderMarkdown(md, sheet) {
     return `<figure><img src="${src}" alt="${alt || ''}" style="${w}border-radius:6px">${capHtml}</figure>`;
   });
 
+  // ── Step 10a2: Plain Markdown images ![alt](pfad) ──
+  // Bilder gehören in U-Writer ins Blatt selbst (img:id). Ein Pfad oder eine
+  // URL zeigt nach außen: ein entferntes Bild zu laden würde die Offline-Zusage
+  // brechen, ein relativer Pfad ist aus dem localStorage heraus ohnehin nicht
+  // auflösbar. Statt die rohe Syntax stehen zu lassen (bisheriges Verhalten —
+  // für den Nutzer schlicht kaputter Text) zeigt ein benannter Platzhalter,
+  // was fehlt. Läuft nach 10a, die img:-Form ist dort bereits verbraucht.
+  html = html.replace(MD_IMAGE_RE, (whole, alt, target) => {
+    if (/^img:/.test(target)) return whole; // von 10a bereits behandelt
+    return `<span class="img-external" title="Nicht eingebettet: ${target}">🖼 ${alt || target} — nicht eingebettet</span>`;
+  });
+
   // ── Step 10b: Links (skip images) ──
-  html = html.replace(/(?<!!)\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  html = html.replace(MD_LINK_RE, (_, label, url) => safeLinkHtml(url, label));
 
   // ── Step 11: Paragraphs ──
   // Code-block placeholders must always form their own paragraph, even when the
@@ -6907,6 +7109,44 @@ function escHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
+/* Schemes that may reach an href. Everything else — javascript:, data:,
+   vbscript: — is dropped. Dokumente sind nicht immer selbst geschrieben:
+   importierte .md-Dateien, Bausteine und Treffer aus der Dateibibliothek sind
+   Fremdinhalt, und ein gerenderter Link ist einen Klick davon entfernt, mit
+   vollem Zugriff auf den localStorage ausgeführt zu werden.
+   Muss in JEDER Pipeline verwendet werden, die einen href oder src baut. */
+const URL_SAFE_SCHEMES = ['http', 'https', 'mailto', 'tel', 'ftp'];
+
+function safeUrl(url) {
+  const raw = String(url === null || url === undefined ? '' : url).trim();
+  if (!raw) return '';
+  // Browser ignorieren Steuerzeichen beim Auflösen des Schemas ("java\tscript:"
+  // ist für sie weiterhin javascript:) — deshalb wird für die Prüfung eine
+  // bereinigte Kopie verwendet, zurückgegeben aber der Originalwert.
+  const probe = raw.replace(/[\u0000-\u0020]/g, '').toLowerCase();
+  const colon = probe.indexOf(':');
+  const hasScheme = colon > 0 && /^[a-z][a-z0-9+.-]*$/.test(probe.slice(0, colon));
+  if (hasScheme && !URL_SAFE_SCHEMES.includes(probe.slice(0, colon))) return '';
+  return raw;
+}
+
+/* Baut ein <a>-Tag oder — bei verworfener URL — den reinen Linktext.
+   labelHtml ist bereits maskiert, extraAttr wird von renderStyledHtml genutzt. */
+function safeLinkHtml(url, labelHtml, extraAttr) {
+  const href = safeUrl(url);
+  if (!href) return labelHtml;
+  return '<a href="' + href + '"' + (extraAttr || '') + ' rel="noopener noreferrer">' + labelHtml + '</a>';
+}
+
+/* Zielteil eines Markdown-Links/-Bildes. Erlaubt eine Ebene verschachtelter
+   Klammerpaare, damit URLs wie …/Fuge_(Musik) nicht am ersten ")" abreißen —
+   das frühere ([^)]+) lieferte dort einen toten Link plus ein übrig
+   gebliebenes ")" im Text. Als String, weil alle drei Pipelines dieselbe
+   Definition brauchen. */
+const MD_URL_PATTERN = '(?:[^()]|\\([^()]*\\))+';
+const MD_LINK_RE = new RegExp('(?<!!)\\[([^\\]]+)\\]\\((' + MD_URL_PATTERN + ')\\)', 'g');
+const MD_IMAGE_RE = new RegExp('!\\[([^\\]]*)\\]\\((' + MD_URL_PATTERN + ')\\)', 'g');
+
 function extractTitle(content) {
   if (!content) return '';
   const first = content.split('\n').find(l => l.trim().length > 0) || '';
@@ -7055,12 +7295,13 @@ function setSortBy(field) {
    TOAST NOTIFICATION
    ═══════════════════════════════════════════════════ */
 let toastTimer = null;
-function toast(msg) {
+function toast(msg, durationMs) {
   const el = document.getElementById('toast');
+  if (!el) { console.warn('[U-Writer]', msg); return; }
   el.textContent = msg;
   el.classList.add('visible');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('visible'), 2200);
+  toastTimer = setTimeout(() => el.classList.remove('visible'), durationMs || 2200);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -7672,7 +7913,17 @@ function formatInline(text, style) {
     _fnExportTexts.push((_fnExportSheet && _fnExportSheet.footnotes) ? (_fnExportSheet.footnotes[_fnExportCounter - 1] || '') : '');
     return `<sup style="font-size:10px;font-weight:700;color:#4a90d9">${_fnExportCounter}</sup>`;
   });
-  s = s.replace(/(?<!!)\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:inherit;">$1</a>');
+  // Externe Bilder ![alt](pfad) — wie in renderMarkdown: nie nachladen,
+  // sondern benannt kenntlich machen. Die img:-Form ist bereits zeilenweise
+  // in renderStyledHtml behandelt worden.
+  s = s.replace(MD_IMAGE_RE, (whole, alt, target) => {
+    // Eingebettete Bilder (img:id) werden zeilenweise in renderStyledHtml
+    // aufgelöst — hier unangetastet lassen, sonst würde ein vorhandenes Bild
+    // fälschlich als "nicht eingebettet" markiert.
+    if (/^img:/.test(target)) return whole;
+    return `<span style="opacity:0.6;font-style:italic">🖼 ${alt || target} — nicht eingebettet</span>`;
+  });
+  s = s.replace(MD_LINK_RE, (_, label, url) => safeLinkHtml(url, label, ' style="color:inherit;"'));
   return s;
 }
 
@@ -7848,8 +8099,14 @@ function confluenceInline(text) {
   s = s.replace(/\(fn\)/g, () => { cfnIdx++; return `[${cfnIdx}]`; });
   // Images inline: ![alt](img:id "caption" =WIDTH%) → !id!
   s = s.replace(/!\[([^\]]*)\]\(img:(\S+?)(?:\s+"[^"]*")?(?:\s+=\d+%)?\)/g, '!$2!');
-  // Links: [text](url) → [text|url]
-  s = s.replace(/(?<!!)\[([^\]]+)\]\(([^)]+)\)/g, '[$1|$2]');
+  // Externe Bilder ![alt](pfad): Confluence kann einen lokalen Pfad ohnehin
+  // nicht auflösen — als Text kennzeichnen statt rohe Syntax zu exportieren.
+  s = s.replace(MD_IMAGE_RE, (_, alt, target) => `_🖼 ${alt || target} — nicht eingebettet_`);
+  // Links: [text](url) → [text|url]; unsichere Schemata verlieren die URL.
+  s = s.replace(MD_LINK_RE, (_, label, url) => {
+    const href = safeUrl(url);
+    return href ? `[${label}|${href}]` : label;
+  });
   return s;
 }
 
@@ -8085,10 +8342,6 @@ function exportPdf(sheet) {
 }
 
 /* ── Legacy wrapper ── */
-function exportSheet() {
-  openExportPanel();
-}
-
 /* ═══════════════════════════════════════════════════
    ANNOTATION SYSTEM (Inline-Anmerkungen)
    ═══════════════════════════════════════════════════ */
@@ -8715,12 +8968,19 @@ function createAutoBackup() {
   // 2. Save to localStorage as fallback
   try {
     let backups = JSON.parse(localStorage.getItem(BACKUP_KEY) || '[]');
+    const serialized = JSON.stringify(state);
+    // Unveränderten Zustand nicht erneut sichern: der localStorage hält ohnehin
+    // schon den Live-Zustand plus bis zu BACKUP_MAX Vollkopien gegen ein
+    // Kontingent von typischerweise 5–10 MB. Alle 5 Minuten eine identische
+    // Kopie zu schreiben, verdrängt nur ältere, tatsächlich unterschiedliche
+    // Stände aus dem Verlauf.
+    if (backups.length > 0 && backups[0].data === serialized) return;
     const snapshot = {
       id: Date.now(),
       date: new Date().toISOString(),
       sheetsCount: state.sheets.filter(s => s.groupId !== '__trash').length,
       wordsCount: state.sheets.reduce((sum, s) => sum + countWords(s.content), 0),
-      data: JSON.stringify(state),
+      data: serialized,
     };
     backups.unshift(snapshot);
     // Keep fewer backups when images are present to save space
@@ -9632,16 +9892,6 @@ function confirmImageInsert() {
 }
 
 /* ── Image rendering helper ── */
-function resolveImageSrc(imgRef, sheet) {
-  if (!sheet || !sheet.images) return null;
-  // imgRef is like "img:img_abc123" or "img:img_abc123 \"caption\""
-  const match = imgRef.match(/^img:(\S+)/);
-  if (!match) return null;
-  const id = match[1];
-  const imgData = sheet.images[id];
-  return imgData ? imgData.data : null;
-}
-
 /* Drag & drop irgendwo im Programmfenster: .md/.txt-Dateien werden importiert
    (landen im Eingang, siehe handleImportFiles), ein einzelnes Bild direkt über
    dem Editor wird stattdessen wie bisher inline eingebettet. preventDefault()
