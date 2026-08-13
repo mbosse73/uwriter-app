@@ -3672,6 +3672,11 @@ input, textarea { font-family: inherit; font-size: inherit; color: var(--text-pr
       <button class="ep-fn-btn active" id="epJustifyLeft" onclick="setExportJustify(false)">Linksbündig</button>
       <button class="ep-fn-btn" id="epJustifyOn" onclick="setExportJustify(true)">Blocksatz</button>
     </div>
+    <div class="ep-fn-toggle" id="epTocToggle">
+      <span class="ep-fn-toggle-label">Inhaltsverzeichnis</span>
+      <button class="ep-fn-btn active" id="epTocOff" onclick="setExportToc(false)">Ohne</button>
+      <button class="ep-fn-btn" id="epTocOn" onclick="setExportToc(true)">Voranstellen</button>
+    </div>
     <div class="ep-preview-wrap">
       <div class="ep-preview-page" id="epPreviewPage"></div>
     </div>
@@ -7558,7 +7563,66 @@ let exportState = {
   styleId: 'swiss',
   footnoteMode: 'footnote',
   justify: false,
+  toc: false,
 };
+
+/* ── Inhaltsverzeichnis für den PDF-Export (LH-12) ──
+   Bewusst als Nachbearbeitung des fertigen HTML statt als Zweig in
+   renderStyledHtml(): dieselbe Funktion rendert auch die iA-Writer-
+   Live-Vorschau, die niemals ein Inhaltsverzeichnis bekommen soll. So bleibt
+   der Renderer unangetastet und das Verzeichnis eine reine Export-Option.
+
+   Keine Seitenzahlen: die entstehen erst beim Umbruch im Druckdialog des
+   Browsers und sind aus dem Dokument heraus nicht ermittelbar (siehe LH-14).
+   Stattdessen Sprungmarken — die übernimmt „Als PDF speichern" als klickbare
+   Verweise ins fertige Dokument. */
+function extractTocHeadings(styledHtml) {
+  const items = [];
+  let counter = 0;
+  const withIds = styledHtml.replace(/<(h[123])([^>]*)>([\s\S]*?)<\/\1>/g, (whole, tag, attrs, inner) => {
+    // Bereits vergebene id nicht überschreiben (idempotent bei Doppelaufruf).
+    if (/\sid=/.test(attrs)) return whole;
+    counter++;
+    const id = 'uw-toc-' + counter;
+    // Für die Verzeichniszeile nur den Text, ohne Auszeichnungen wie <strong>.
+    const label = inner.replace(/<[^>]+>/g, '').trim();
+    if (!label) return whole;
+    items.push({ id, level: parseInt(tag.slice(1), 10), label });
+    return `<${tag}${attrs} id="${id}">${inner}</${tag}>`;
+  });
+  return { html: withIds, items };
+}
+
+function buildTocHtml(items, style) {
+  if (!items.length) return '';
+  // Relativ zur flachsten vorhandenen Ebene einrücken: ein Dokument, das nur
+  // ## und ### verwendet, soll nicht durchgehend eingerückt beginnen.
+  const minLevel = Math.min.apply(null, items.map(it => it.level));
+  // Eigene id: sonst würde extractTocHeadings() bei einem erneuten Durchlauf
+  // die Überschrift des Verzeichnisses selbst als Kapitel aufnehmen.
+  const heading = style && style.h2
+    ? `<h2 style="${style.h2}" id="uw-toc-title">Inhalt</h2>`
+    : '<h2 style="font-size:20px;margin:0 0 16px" id="uw-toc-title">Inhalt</h2>';
+  const rows = items.map(it => {
+    const indent = (it.level - minLevel) * 18;
+    const weight = it.level === minLevel ? '500' : '400';
+    const opacity = it.level === minLevel ? '1' : '0.8';
+    return `<div style="margin:0 0 6px ${indent}px;font-weight:${weight};opacity:${opacity};line-height:1.5">`
+      + `<a href="#${it.id}" style="color:inherit;text-decoration:none">${it.label}</a></div>`;
+  }).join('');
+  // page-break-after wirkt nur im Druck; in der Bildschirmvorschau steht das
+  // Verzeichnis dadurch unverändert oberhalb des Textes.
+  return `<nav style="margin:0 0 32px;page-break-after:always">${heading}${rows}</nav>`;
+}
+
+/* Fertiges Export-HTML um ein vorangestelltes Inhaltsverzeichnis ergänzen.
+   Ohne Überschriften bleibt das HTML unverändert — ein leeres Verzeichnis
+   wäre schlechter als keines. */
+function withTableOfContents(styledHtml, style) {
+  const { html, items } = extractTocHeadings(styledHtml);
+  if (!items.length) return styledHtml;
+  return buildTocHtml(items, style) + html;
+}
 
 /* ── Open / Close ── */
 function openExportPanel() {
@@ -7585,6 +7649,17 @@ function setExportFormat(fmt) {
   const fnToggle = document.getElementById('epFnToggle');
   stylesSection.style.display = (fmt === 'confluence') ? 'none' : '';
   fnToggle.style.display = (fmt === 'confluence') ? 'none' : '';
+  // Inhaltsverzeichnis gibt es nur im PDF-Weg: der Markdown-Export läuft über
+  // resolveImagesForExport(), der Confluence-Export erzeugt Wiki-Markup —
+  // beide bauen ihre Struktur im Zielsystem selbst auf.
+  document.getElementById('epTocToggle').style.display = (fmt === 'pdf') ? '' : 'none';
+  updateExportPreview();
+}
+
+function setExportToc(on) {
+  exportState.toc = on;
+  document.getElementById('epTocOff').classList.toggle('active', !on);
+  document.getElementById('epTocOn').classList.toggle('active', on);
   updateExportPreview();
 }
 
@@ -7669,7 +7744,9 @@ function updateExportPreview() {
     copyBtn.style.display = '';
   } else {
     const style = EXPORT_STYLES.find(s => s.id === exportState.styleId) || EXPORT_STYLES[0];
-    const html = renderStyledHtml(sheet.content, style, sheet, exportState.justify);
+    let html = renderStyledHtml(sheet.content, style, sheet, exportState.justify);
+    const wantsToc = exportState.format === 'pdf' && exportState.toc;
+    if (wantsToc) html = withTableOfContents(html, style);
     page.className = 'ep-preview-page' + (style.darkPage ? ' dark-page' : '');
     page.style.background = style.pageBg || '';
     page.innerHTML = html;
@@ -7679,6 +7756,10 @@ function updateExportPreview() {
     if (exportState.format === 'pdf') {
       exportBtn.textContent = 'Als PDF drucken';
       copyBtn.style.display = 'none';
+      // Verlangtes, aber leeres Verzeichnis nicht stillschweigend weglassen.
+      if (exportState.toc && !/^<nav /.test(html)) {
+        info.textContent += ' · kein Inhaltsverzeichnis (keine Überschriften)';
+      }
     } else {
       exportBtn.textContent = 'Herunterladen (.md)';
       copyBtn.style.display = '';
@@ -8270,7 +8351,8 @@ function downloadFile(content, filename, mimeType) {
 
 function exportPdf(sheet) {
   const style = EXPORT_STYLES.find(s => s.id === exportState.styleId) || EXPORT_STYLES[0];
-  const styledContent = renderStyledHtml(sheet.content, style, sheet, exportState.justify);
+  let styledContent = renderStyledHtml(sheet.content, style, sheet, exportState.justify);
+  if (exportState.toc) styledContent = withTableOfContents(styledContent, style);
 
   const pageBg = style.pageBg || (style.darkPage ? '#1a1a1e' : '#fff');
   const pageColor = style.darkPage ? '#d8d8dc' : '#1d1d1f';
@@ -8294,6 +8376,11 @@ function exportPdf(sheet) {
   tr { page-break-inside: avoid; }
   h1, h2, h3 { page-break-after: avoid; }
   pre { page-break-inside: avoid; }
+  /* Inhaltsverzeichnis (LH-12): eigene Seite, Einträge nie über den
+     Seitenumbruch hinweg zerreißen. Die Regel greift nur, wenn ein
+     Verzeichnis vorangestellt wurde. */
+  nav { page-break-inside: avoid; }
+  nav a { text-decoration: none; color: inherit; }
 </style>
 </head><body>${styledContent}</body></html>`;
 

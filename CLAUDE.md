@@ -20,6 +20,7 @@ This **is** a git repository (remote `mbosse73/uwriter-app`, default branch `mai
 | `LASTENHEFT_ERWEITERUNGEN.md` | Requirements backlog LH-01…LH-16 (what + why, not how). |
 | `ANALYSIS.md` | Findings of the 2026-08 onboarding analysis (architecture, defects, proposals). |
 | `START_HERE.md` | Onboarding-run instructions (6 phases). |
+| `test/` | jsdom test suite (`node test/run.js`) + `test/README.md`. Not shipped, not a dependency of the app. |
 | `.claude/commands/` | `/verify`, `/render-check`, `/neues-overlay` — the recurring workflows of this repo. |
 
 There is deliberately **no `package.json`** (removed 2026-08-13; `.gitignore` keeps it from coming back) and no committed `ulysses.backup-*.html` snapshots — the last commit carrying them is `57f4a2e`, so `git checkout 57f4a2e -- ulysses.backup-20260719-091807.html` brings one back if ever needed. Git history is the rollback mechanism; a second copy in the working tree is not.
@@ -34,29 +35,30 @@ The app is explicitly, deliberately **offline-first and zero-dependency**: no CD
 
 ## Commands
 
-There is no build, lint, test, or install tooling **inside the repo** — none exists and none should be added. Verification tooling runs from a **scratch directory outside the repo**, so the shipped file stays dependency-free.
+There is no build, lint, or install tooling **inside the repo** — none exists and none should be added. The test suite lives in `test/` but pulls its one dependency (jsdom) into a **directory outside the repo**, so the shipped file and the repo stay dependency-free. A test case enforces that.
 
 - **Run the app**: open `ulysses.html` directly in a browser (`file://` URL or double-click). No dev server required.
-- **Syntax-check after every edit** (mandatory, ~1 s):
+- **Syntax-check after every edit** (mandatory, ~1 s — the fastest way to catch a typo):
   ```bash
   node -e "const h=require('fs').readFileSync('ulysses.html','utf8');new Function(h.slice(h.indexOf('<script>')+8,h.lastIndexOf('</script>')));console.log('JS OK')"
   ```
-- **Smoke-boot in jsdom** (catches runtime errors during init that the syntax check cannot):
+- **Test suite** (~20 s, 65 cases; installs jsdom outside the repo on first run):
   ```bash
-  mkdir -p /tmp/uw-test && cd /tmp/uw-test && npm init -y >/dev/null && npm install jsdom --silent
+  node test/run.js                 # everything
+  node test/run.js renderer        # only case files matching "renderer"
   ```
-  then load `ulysses.html` with `new JSDOM(html, {runScripts:'dangerously', pretendToBeVisual:true, url:'https://localhost/'})`, dispatch `DOMContentLoaded`, and assert that no `jsdomError`/`console.error` was captured on a `VirtualConsole`. Call `process.exit(0)` at the end — the app's 5-minute `setInterval` auto-backup timer otherwise keeps Node alive forever.
-  - Note on scope: only `function` declarations land on `window`; the ~929 top-level `const`s (`EXPORT_STYLES`, `CMD_REGISTRY`, `state`, …) are **not** reachable as `window.X` from a test. Test renderers by calling the exported functions and passing fixtures in (a `Proxy` returning `''` for every key works as a stand-in `style` object for `renderStyledHtml`).
-- **Interaction tests**: simulate real `MouseEvent`/`KeyboardEvent` sequences — pure function calls reliably hide the DOM-interaction bug classes listed below.
-- **No persistent automated test suite exists yet.** Building one from the patterns above is the single highest-value open improvement (`ANALYSIS.md`, proposal V-1).
+  Exit code 0 = green, 1 = failures, 2 = the runner itself could not start. Details, structure, and — importantly — **what the suite does not cover** are in `test/README.md`.
+- **Writing new cases**: `test/cases/*.test.js`, each exporting `{name, tests: {title: async (h) => …}}`. Two things to know before you start:
+  - Only `function` declarations land on `window`; the ~930 top-level `const`s (`state`, `EXPORT_STYLES`, `CMD_REGISTRY`, …) are **not** reachable from a test. Pass fixtures in instead (`h.styleProxy()`, `h.sheetFixture()`), and read state back via `localStorage` after a `saveState()`.
+  - For anything involving clicks or keys, use `h.mouse()`/`h.key()` — pure function calls reliably hide the DOM-interaction bug classes listed below.
 
 ## Definition of Done
 
 A change to `ulysses.html` is done only when all of these hold:
 
 1. **Syntax check passes** (command above) — non-negotiable, there is no build step to catch a typo.
-2. **jsdom smoke boot reports 0 errors** — the app initialises cleanly.
-3. **The touched feature was exercised**, not just called: for UI/interaction changes, via simulated event sequences in jsdom; for renderer changes, by rendering a fixture through **all** affected pipelines (`renderMarkdown`, `renderStyledHtml`, `markdownToConfluence` — they are separate implementations, fixing one does not fix the others).
+2. **`node test/run.js` is green.** A failing case is either a regression or an expectation that genuinely changed — decide which, don't just make it pass.
+3. **The change has a case of its own** where the suite can see it. For UI/interaction changes that means simulated event sequences; for renderer changes, a fixture through **all** affected pipelines (`renderMarkdown`, `renderStyledHtml`, `markdownToConfluence` — they are separate implementations, fixing one does not fix the others). If the behaviour genuinely isn't observable from a test, say so in a comment on the nearest case rather than leaving a silent gap.
 4. **Cross-cutting registries updated** where applicable: new shortcut → `CMD_REGISTRY` only; new overlay → `isAnyOverlayOpen()` list **and** the Escape cascade; new colour → `applyTheme()` **and** all 6 `EDITOR_THEMES` entries.
 5. **The zero-dependency constraint still holds**: `grep -nE '(src|href)="https?://' ulysses.html` returns nothing, and no new file is required to run the app.
 6. **Docs follow the code**: architectural or data-model changes are reflected in `PROJEKTDOKUMENTATION.md` and, if they change how one works on the project, in this file.
@@ -117,11 +119,11 @@ Analysed 2026-08-13; full write-up with severities in `ANALYSIS.md`. The defects
 **Still open — accepted or architectural**
 - Accessibility is started, not finished: no focus trap in dialogs, no focus restore on close, no `aria-expanded`/`aria-selected` on toggles, no contrast audit of the 6 themes, never tested with a real screen reader.
 - Only 3 `@media` rules total; the 3-column layout isn't designed for narrow/mobile screens.
-- No persistent automated test suite (see Commands section above) — the largest single open improvement (`ANALYSIS.md` V-1).
+- The test suite covers logic, renderers and DOM interaction, but not `window.print()`/PDF output, the File System Access API paths (backup directory, file library), layout, or theme colours — jsdom renders none of that. `test/README.md` lists the gaps in full.
 - No preventive image compression; only a 5 MB per-image guard plus the reactive quota warning (backlog LH-15).
 - `renderSheetList()` rebuilds the full list on every change (2 `innerHTML` assignments, no virtualisation). Fine at current scale, untested at hundreds of sheets — measure before optimising.
 - No multi-device/cloud sync (intentional, given the offline constraint). `README.md` now says so; the in-app help still doesn't.
-- PDF export has no auto-generated table of contents, despite an internal outline structure existing (backlog LH-12).
+- PDF export has no page numbers or running header (backlog LH-14) — browsers expose no reliable way to do this from the document. The optional table of contents (LH-12) is implemented: `withTableOfContents()`, toggled via `exportState.toc`, PDF format only.
 
 ## Backup & rollback
 

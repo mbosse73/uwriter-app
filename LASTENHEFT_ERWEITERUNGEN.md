@@ -23,7 +23,7 @@ U-Writer ist eine einzige, vollständig offline-fähige HTML-Datei ohne externe 
 | LH-09 | Lesezeit-Schätzung in der Statusleiste | Editor | sehr klein | Ergänzung der vorhandenen Statuszeile |
 | LH-10 | Querverweise zwischen Blättern (Wiki-Links) | Wissensvernetzung | groß | bisher keinerlei Verlinkung zwischen Blättern |
 | LH-11 | „Wo wird dieser Baustein verwendet?" | Wissensvernetzung | klein | Infrastruktur (`updateAllBlockUsages`) existiert bereits |
-| LH-12 | Inhaltsverzeichnis im PDF-Export | Export | mittel | Gliederungsdaten existieren bereits intern |
+| LH-12 | Inhaltsverzeichnis im PDF-Export | Export | mittel | **umgesetzt 2026-08-13** — `withTableOfContents()`, Umschalter im Export-Panel |
 | LH-13 | Sammel-Export einer ganzen Gruppe | Export | mittel | Export ist aktuell auf ein Blatt beschränkt |
 | LH-14 | Seitenzahlen/Kopfzeile im PDF-Export | Export | klein | Browser-Einschränkung beachten (siehe unten) |
 | LH-15 | Automatische Bildkompression vor dem Speichern | Systempflege | mittel | adressiert bekannte technische Schuld |
@@ -102,8 +102,10 @@ U-Writer ist eine einzige, vollständig offline-fähige HTML-Datei ohne externe 
 
 ## D. Export
 
-### LH-12 — Inhaltsverzeichnis im PDF-Export
-**Ist-Zustand:** Bereits als offener Punkt in `PROJEKTDOKUMENTATION.md` (Abschnitt 8.7) vermerkt. Die Gliederungsstruktur existiert intern vollständig (`renderOutline()`), wird aber nicht mitexportiert.
+### LH-12 — Inhaltsverzeichnis im PDF-Export — **umgesetzt (2026-08-13)**
+**Umsetzung:** Umschalter „Inhaltsverzeichnis: Ohne / Voranstellen" im Export-Panel, nur beim PDF-Format. `withTableOfContents()` vergibt Sprungmarken an alle Überschriften des fertigen Export-HTML und stellt eine eingerückte Liste voran, die im Druck auf einer eigenen Seite steht. Ohne Überschriften bleibt das Dokument unverändert und die Fußzeile des Panels sagt das. **Ohne Seitenzahlen** — die entstehen erst beim Umbruch im Druckdialog und sind aus dem Dokument heraus nicht ermittelbar; das bleibt Gegenstand von LH-14.
+
+**Ist-Zustand vor der Umsetzung:** Die Gliederungsstruktur existierte intern vollständig (`renderOutline()`), wurde aber nicht mitexportiert.
 **Anforderung:** Automatisch generiertes Inhaltsverzeichnis am Anfang des PDF-Exports, basierend auf den vorhandenen Überschriften.
 **Nutzen:** Bei längeren Dokumenten (Handbücher, Berichte) ist ein fehlendes Inhaltsverzeichnis der auffälligste Unterschied zu klassischer Textverarbeitung. Vergleichsweise günstig umzusetzen, weil die Daten bereits vorliegen.
 

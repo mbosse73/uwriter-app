@@ -233,7 +233,7 @@ Ergänzend zum bestehenden Backlog in `LASTENHEFT_ERWEITERUNGEN.md` (LH-01…LH-
 
 | ID | Vorschlag | Aufwand | Nutzen | Begründung |
 |---|---|---|---|---|
-| **V-1** | **Persistente Test-Suite** (`test/` außerhalb der Auslieferungsdatei, jsdom aus Scratch-Verzeichnis): Boot-Rauchtest, Renderer-Fixtures für alle drei Pipelines, simulierte Event-Sequenzen für die bekannten Interaktions-Bugklassen | mittel | **hoch** | Bei 348 Funktionen in einer Datei ohne Typsystem ist die Regressionsgefahr die größte Einzelbedrohung des Projekts. Verletzt die Vorgabe nicht: die Tests liegen neben der App, nicht darin |
+| **V-1** ✅ | **Persistente Test-Suite** — umgesetzt am 2026-08-13: `test/` mit 65 Fällen, `node test/run.js`. jsdom wird außerhalb des Repos installiert, im Repo entsteht kein `package.json` und kein `node_modules` (ein Testfall prüft das). Grenzen in `test/README.md` | mittel | **hoch** | Bei ~350 Funktionen in einer Datei ohne Typsystem ist die Regressionsgefahr die größte Einzelbedrohung des Projekts |
 | **V-2** | K-1/K-2 beheben: Persistenzfehler sichtbar machen, beschädigten Zustand vor dem Überschreiben sichern | **niedrig** | **hoch** | Bestes Verhältnis von Aufwand zu Nutzen im gesamten Katalog — verhindert stillen Totalverlust |
 | **V-3** | K-3 beheben: gemeinsame `safeUrl()`-Prüfung in beiden HTML-Pipelines | **niedrig** | **hoch** | Schließt den einzigen gefundenen Weg zur Codeausführung |
 | **V-4** | M-4 beheben: globale `error`/`unhandledrejection`-Handler mit `toast()` | **niedrig** | mittel | Macht heute unsichtbare Fehler überhaupt erst meldbar |
@@ -254,7 +254,7 @@ Aus dem Lastenheft ragen für das nächste Arbeitspaket heraus:
 | LH-05 | Interaktive Checklisten `- [ ]` | **niedrig** | mittel | Konvention wird in Vorlagen bereits verwendet, aber nicht gerendert |
 | LH-09 | Lesezeit in der Statusleiste | **sehr niedrig** | niedrig–mittel | Wortzähler ist vorhanden, eine Division fehlt |
 | LH-01 | Status-Workflow (Entwurf → Prüfung → Final) | mittel | **hoch** | Setzt auf den vorhandenen Dokumenteigenschaften auf und trifft den erklärten Büro-Anwendungsfall am direktesten |
-| LH-12 | Inhaltsverzeichnis im PDF-Export | mittel | mittel–hoch | Gliederungsdaten liegen intern vor; für längere Berichte der spürbarste Export-Mangel |
+| LH-12 ✅ | Inhaltsverzeichnis im PDF-Export — umgesetzt am 2026-08-13 (`withTableOfContents()`, Umschalter im Export-Panel, ohne Seitenzahlen — die bleiben LH-14) | mittel | mittel–hoch | Gliederungsdaten lagen intern vor; für längere Berichte der spürbarste Export-Mangel |
 | LH-15 | Automatische Bildkompression vor dem Speichern | mittel | mittel–hoch | Adressiert dieselbe Speicherenge wie M-5 an der Wurzel — Bilder sind der einzige unbegrenzt wachsende Datenanteil |
 
 **Empfohlene Reihenfolge:** V-2 und V-3 (klein, hoher Schutzwert) → V-1 (schafft die Grundlage für alles Weitere) → V-4, V-7, V-8 → LH-11/LH-05/LH-09 als schnelle Funktionsgewinne → LH-01, LH-12, LH-15 als eigenständige Arbeitspakete.
@@ -315,9 +315,9 @@ Ein eigenes *Skill* lohnt sich derzeit nicht: die Abläufe sind kurz und projekt
 
 ## 5. Offene Punkte
 
-Abschnitt 2 ist abgearbeitet. Offen und **noch nicht freigegeben** bleibt Abschnitt 3 (V-1, V-5, V-6-Rest, V-9-Rest, V-10 sowie die Funktionserweiterungen aus dem Lastenheft). Am wichtigsten davon: **V-1, eine dauerhafte Test-Suite** — die Prüfungen dieser Runde waren erneut Wegwerf-Skripte in einem Scratch-Verzeichnis, genau das Muster, das die Analyse als größte Einzelschwäche benennt.
+Abschnitt 2 ist abgearbeitet, aus Abschnitt 3 sind **V-1** (Test-Suite) und **LH-12** (Inhaltsverzeichnis) umgesetzt. Offen und **noch nicht freigegeben** bleiben V-5, der Rest von V-6, der Rest von V-9, V-10 sowie die übrigen Funktionserweiterungen aus dem Lastenheft (LH-01, LH-05, LH-09, LH-11, LH-15).
 
-Nicht behandelte, bewusst stehen gelassene Punkte: G-7 (deutsch/englisch gemischte Bezeichner — gewachsen und in sich stimmig, eine nachträgliche Vereinheitlichung wäre ein großer Diff ohne Nutzen) und die in Abschnitt 6.3 aufgeführten Reste der Barrierefreiheit.
+Nicht behandelte, bewusst stehen gelassene Punkte: G-7 (deutsch/englisch gemischte Bezeichner — gewachsen und in sich stimmig, eine nachträgliche Vereinheitlichung wäre ein großer Diff ohne Nutzen) und die in Abschnitt 6.4 aufgeführten Reste der Barrierefreiheit.
 
 ---
 
@@ -364,6 +364,14 @@ Alle Prüfungen in jsdom aus einem Scratch-Verzeichnis außerhalb des Repos.
 
 Nicht prüfbar in jsdom und daher offen: `scrollIntoView` ist dort nicht implementiert (bekannte jsdom-Lücke, kein Programmfehler), ebenso `window.print()` und die File System Access API. Der PDF-Export und die Dateibibliothek wurden folglich nicht zur Laufzeit geprüft — dort wurde nur der geänderte Renderer-Pfad über Fixtures abgedeckt.
 
-### 6.3 Was bei M-6 bewusst offen bleibt
+### 6.3 Nachtrag: V-1 und LH-12 (ebenfalls 2026-08-13)
+
+**V-1 — Test-Suite unter `test/`.** 65 Fälle in 7 Dateien, Aufruf `node test/run.js` (~20 s). Der Läufer löst jsdom aus `$UW_TEST_DEPS` bzw. `<tmp>/uwriter-test-deps` auf und installiert es dort beim ersten Lauf nach — im Repo entsteht weder `package.json` noch `node_modules`, und ein Fall prüft genau das mit. Abgedeckt: Start, Persistenz (K-1/K-2/M-5), alle drei Render-Pipelines (K-3/M-1/M-2), Interaktion (§6.1–6.5 der Projektdoku), Inhaltsverzeichnis, Architekturvorgaben und Registries, Barrierefreiheit.
+
+Die Suite wurde gegen fünf absichtlich eingebaute Regressionen geprüft, um auszuschließen, dass sie bloß grün leuchtet: entfernte `safeUrl()`-Prüfung (3 Fehlschläge), nicht vorangestelltes Inhaltsverzeichnis (5), entfernte Rettung beschädigter Daten (2), nicht mehr vergebene `role="button"` (2) — alle erkannt. **Nicht erkannt** wurde das Entfernen von `delete undoStacks[id]`: das Leck ist von außen nicht beobachtbar, weil `undoStacks` ein Top-Level-`const` ist. Das steht als Kommentar am betroffenen Fall.
+
+**LH-12 — Inhaltsverzeichnis im PDF-Export.** `withTableOfContents(styledHtml, style)` vergibt `id="uw-toc-N"` an alle `h1`/`h2`/`h3` des fertigen Export-HTML und stellt eine nach Ebene eingerückte Liste mit Sprungmarken voran (`page-break-after:always`, im Druck also eine eigene Seite). Bewusst als Nachbearbeitung statt als Zweig in `renderStyledHtml()`, weil dieselbe Funktion die iA-Writer-Live-Vorschau rendert. Umschalter „Ohne / Voranstellen" im Export-Panel, nur beim PDF-Format sichtbar; `exportState.toc`. Ohne Überschriften bleibt das Dokument unverändert und die Fußzeile sagt es. **Ohne Seitenzahlen** — die entstehen erst beim Umbruch im Druckdialog und sind aus dem Dokument heraus nicht ermittelbar; das bleibt LH-14.
+
+### 6.4 Was bei M-6 bewusst offen bleibt
 
 Rollen, Fokussierbarkeit, Beschriftungen und Tastaturaktivierung sind da; das ist die Grundlage, nicht die fertige Barrierefreiheit. Offen bleiben: Fokusfalle innerhalb offener Dialoge, Fokus-Rückgabe an das auslösende Element beim Schließen, `aria-expanded`/`aria-selected` an Umschaltern und Registerkarten, Kontrastprüfung der 6 Themes in hell und dunkel sowie eine Prüfung mit einem echten Screenreader. Das ist eigenständige Arbeit und keine Nacharbeit an dieser Runde.

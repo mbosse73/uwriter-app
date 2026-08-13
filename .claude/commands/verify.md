@@ -12,18 +12,18 @@ mit bestanden/durchgefallen, ohne einen davon stillschweigend zu überspringen.
 node -e "const h=require('fs').readFileSync('ulysses.html','utf8');new Function(h.slice(h.indexOf('<script>')+8,h.lastIndexOf('</script>')));console.log('JS OK')"
 ```
 
-**2. Boot in jsdom** — fängt Laufzeitfehler in der Initialisierung, die der
-Syntax-Check nicht sehen kann. Scratch-Verzeichnis **außerhalb** des Repos
-verwenden; im Repo darf keine Node-Toolchain entstehen.
+**2. Test-Suite** — fängt Laufzeitfehler und Regressionen, die der Syntax-Check
+nicht sehen kann:
 
 ```bash
-mkdir -p /tmp/uw-test && cd /tmp/uw-test && npm init -y >/dev/null && npm install jsdom --silent
+node test/run.js
 ```
 
-Datei mit `new JSDOM(html, {runScripts:'dangerously', pretendToBeVisual:true, url:'https://localhost/'})`
-laden, `DOMContentLoaded` auslösen und prüfen, dass auf einer `VirtualConsole`
-weder `jsdomError` noch `console.error` aufgelaufen ist. Am Ende `process.exit(0)`
-— der 5-Minuten-`setInterval` der Auto-Sicherung hält Node sonst ewig am Leben.
+Beim ersten Lauf wird jsdom außerhalb des Repos nachinstalliert. Exit-Code 0 =
+grün, 1 = Fehlschläge, 2 = der Läufer selbst konnte nicht starten. Bei einem
+Fehlschlag zuerst entscheiden, ob es eine Regression ist oder ob sich die
+Erwartung tatsächlich geändert hat — nicht einfach den Fall anpassen, bis er
+grün ist. Was die Suite **nicht** abdeckt, steht in `test/README.md`.
 
 **3. Offline-Vorgabe** — muss leer bleiben:
 
@@ -38,5 +38,10 @@ ausschließlich ins `CMD_REGISTRY`.
 
 **5. Falls Renderer berührt wurden:** zusätzlich `/render-check` laufen lassen —
 die drei Pipelines sind getrennte Implementierungen.
+
+**6. Neuer Testfall** — jede Verhaltensänderung braucht einen Fall in
+`test/cases/`, dort wo die Suite sie sehen kann. Ist das Verhalten von außen
+nicht beobachtbar, gehört das als Kommentar an den nächstliegenden Fall statt
+als stille Lücke stehen zu bleiben.
 
 Gehe abschließend die Definition of Done in `CLAUDE.md` durch.

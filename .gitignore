@@ -1,6 +1,7 @@
 # U-Writer ist bewusst abhängigkeitsfrei: im Repo darf keine Node-Toolchain
-# entstehen. Verifikation (jsdom) läuft ausschließlich in einem Scratch-
-# Verzeichnis außerhalb des Repos — siehe CLAUDE.md, Abschnitt "Commands".
+# entstehen. Die Test-Suite unter test/ ist versioniert, ihre einzige
+# Abhängigkeit (jsdom) installiert sie jedoch AUSSERHALB des Repos
+# (<tmp>/uwriter-test-deps bzw. $UW_TEST_DEPS) — siehe test/README.md.
 node_modules/
 package.json
 package-lock.json
