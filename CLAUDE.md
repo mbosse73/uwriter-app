@@ -22,7 +22,7 @@ This **is** a git repository (remote `mbosse73/uwriter-app`, default branch `mai
 | `START_HERE.md` | Onboarding-run instructions (6 phases). |
 | `.claude/commands/` | `/verify`, `/render-check`, `/neues-overlay` — the recurring workflows of this repo. |
 
-There is deliberately **no `package.json`** (removed 2026-08-13; `.gitignore` keeps it from coming back) and no committed `ulysses.backup-*.html` snapshots — the last commit that carried them is tagged `backups-archiv-20260813`. Git is the rollback mechanism; a second copy in the working tree is not.
+There is deliberately **no `package.json`** (removed 2026-08-13; `.gitignore` keeps it from coming back) and no committed `ulysses.backup-*.html` snapshots — the last commit carrying them is `57f4a2e`, so `git checkout 57f4a2e -- ulysses.backup-20260719-091807.html` brings one back if ever needed. Git history is the rollback mechanism; a second copy in the working tree is not.
 
 ## Hard architectural constraint — read this first
 

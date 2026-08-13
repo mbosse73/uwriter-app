@@ -6,8 +6,9 @@ package.json
 package-lock.json
 npm-debug.log*
 
-# Snapshots der Anwendung gehören in git-Tags, nicht als Kopie ins Repo
-# (ANALYSIS.md, M-8). Alter Stand: Tag backups-archiv-20260813.
+# Snapshots der Anwendung gehören in die git-Historie, nicht als Kopie ins
+# Repo (ANALYSIS.md, M-8). Letzter Commit mit den Dateien: 57f4a2e.
+#   git checkout 57f4a2e -- ulysses.backup-20260719-091807.html
 ulysses.backup-*.html
 
 # Betriebssystem- und Editor-Beiwerk

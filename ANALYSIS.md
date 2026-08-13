@@ -305,10 +305,10 @@ Ein eigenes *Skill* lohnt sich derzeit nicht: die Abläufe sind kurz und projekt
 
 ### 4.3 Backup- und Rollback-Empfehlung
 
-- **Vor jedem größeren Arbeitspaket ein Tag setzen:** `git tag pre-<thema>-$(date +%Y%m%d) && git push origin --tags`. Damit ist ein Rückweg ein einzelner `git checkout` — unabhängig davon, wie viele Commits danach folgen.
+- **Vor jedem größeren Arbeitspaket ein Tag setzen:** `git tag pre-<thema>-$(date +%Y%m%d) && git push origin --tags`. Damit ist ein Rückweg ein einzelner `git checkout` — unabhängig davon, wie viele Commits danach folgen. (Hinweis: In einer Claude-Code-Sitzung schlägt `git push --tags` mit HTTP 403 fehl, die Zugangsdaten dort dürfen nur Branch-Refs schreiben. Tags also lokal bzw. aus einer normalen Arbeitsumgebung heraus setzen; als Ersatz taugt der Commit-Hash.)
 - **Immer auf einem `claude/<thema>`-Branch arbeiten**, nie direkt auf `main`. `main` bleibt jederzeit auslieferbar; die App ist eine einzelne Datei, ein kaputter `main` ist sofort ein kaputtes Produkt.
 - **Rücknahme bevorzugt per `git revert`** eines eng geschnittenen Commits. `git push --force` auf `main` ist hier nie angemessen.
-- **Die `ulysses.backup-*.html`-Dateien sind Historie, kein Wiederherstellungsverfahren.** Diese Rolle übernimmt git; siehe M-8.
+- **Die `ulysses.backup-*.html`-Dateien waren Historie, kein Wiederherstellungsverfahren.** Diese Rolle übernimmt git; siehe M-8.
 - **Nutzerdaten liegen ausschließlich im Browser.** Vor einer Änderung an `saveState()`/`loadState()`/`createAutoBackup()` oder am Datenmodell zuerst über das Backup-Panel ein JSON-Backup herunterladen — Code lässt sich aus git wiederherstellen, der `localStorage` des Nutzers nicht.
 
 ---
@@ -337,7 +337,7 @@ Nicht behandelte, bewusst stehen gelassene Punkte: G-7 (deutsch/englisch gemisch
 | M-5 | `createAutoBackup()` bricht ab, wenn der serialisierte Zustand dem jüngsten Snapshot entspricht — identische Vollkopien verdrängen sonst ältere, tatsächlich unterschiedliche Stände |
 | M-6 | `applyA11y()` ergänzt `aria-label` (aus `data-tooltip`), `role="button"` + `tabindex="0"` und `role="dialog"` + `aria-modal`; `watchA11y()` zieht nachgerenderte Bereiche über je einen gedrosselten `MutationObserver` nach; ein delegierter `keydown`-Handler bildet Enter/Leertaste auf `click()` ab. `#toast` bekam `role="status"` + `aria-live="polite"` |
 | M-7 | `package.json` entfernt; `.gitignore` verhindert die Rückkehr |
-| M-8 | `.gitignore` angelegt; die drei `ulysses.backup-*.html` entfernt, der letzte Stand mit ihnen ist als Tag `backups-archiv-20260813` erhalten |
+| M-8 | `.gitignore` angelegt; die drei `ulysses.backup-*.html` entfernt — abrufbar aus Commit `57f4a2e` (`git checkout 57f4a2e -- <datei>`). Ein zusätzlicher Tag `backups-archiv-20260813` wurde lokal gesetzt, ließ sich aber nicht pushen: die Zugangsdaten dieser Umgebung dürfen nur Branch-Refs schreiben (HTTP 403). Der Commit-Verweis ist der belastbare Weg |
 | G-1 | `exportSheet()` und `resolveImageSrc()` entfernt |
 | G-2 | `hideCheatSheet()` in die Escape-Kaskade aufgenommen |
 | G-3, G-4 | `PROJEKTDOKUMENTATION.md` korrigiert (§6.2 `findBar`, §11 Ausgabepfad), dazu neue Abschnitte 6.10/6.11 für die beiden neuen Muster |
