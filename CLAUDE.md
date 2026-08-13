@@ -4,9 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-U-Writer ("Schreibprogramm") is a German-language document/knowledge editor, not a typical Markdown editor. The **entire application is a single file**: `ulysses.html` (~10k lines: inline CSS in `<head>`, HTML body, inline `<script>` with ~322 functions). There is a companion doc, `PROJEKTDOKUMENTATION.md` (in German), written specifically as a technical handoff for Claude Code — **read it before making non-trivial changes**; it covers the data model, render pipelines, and recurring bug classes in more depth than this file.
+U-Writer ("Schreibprogramm") is a German-language document/knowledge editor, not a typical Markdown editor. The **entire application is a single file**: `ulysses.html` (11.925 lines / ~500 KB as of 2026-08-13: inline CSS lines 7–3282, HTML body from line 3284, inline `<script>` lines 4171–11922 with 348 top-level functions, 22 of them `async`). There is a companion doc, `PROJEKTDOKUMENTATION.md` (in German), written specifically as a technical handoff for Claude Code — **read it before making non-trivial changes**; it covers the data model, render pipelines, and recurring bug classes in more depth than this file.
 
-This is not a git repository. There is no version control on this project at present.
+This **is** a git repository (remote `mbosse73/uwriter-app`, default branch `main`). Version control exists; the "no version control" note in older revisions of this file is obsolete.
+
+### Repository layout
+
+| Path | Role |
+|---|---|
+| `ulysses.html` | **The application.** The only file that ships. |
+| `ulysses.backup-YYYYMMDD-HHMMSS.html` (3×) | Historical snapshots, committed to git. Read-only reference — never edit, never treat as the app. |
+| `iawriter.html` | Separate sister app ("iA Writer Browser", ~736 KB, mostly an embedded base64 WOFF2 font). Reference for the iA-Writer export style; **not** part of U-Writer. |
+| `mockup-designguide-hell.html` / `-dunkel.html` | Static design-guide mockups (light/dark). Reference only. |
+| `PROJEKTDOKUMENTATION.md` | German technical handoff doc (data model, pipelines, bug classes). |
+| `LASTENHEFT_ERWEITERUNGEN.md` | Requirements backlog LH-01…LH-16 (what + why, not how). |
+| `ANALYSIS.md` | Findings of the 2026-08 onboarding analysis (architecture, defects, proposals). |
+| `START_HERE.md` | Onboarding-run instructions (6 phases). |
+| `package.json` | **Contradicts the zero-dependency constraint below.** Empty stub (`main: index.js` does not exist, `test` script exits 1). Slated for removal — see `ANALYSIS.md` M-7. Do not build on it. |
 
 ## Hard architectural constraint — read this first
 
@@ -18,11 +32,33 @@ The app is explicitly, deliberately **offline-first and zero-dependency**: no CD
 
 ## Commands
 
-There is no build, lint, test, or install tooling — none exists and none should be added.
+There is no build, lint, test, or install tooling **inside the repo** — none exists and none should be added. Verification tooling runs from a **scratch directory outside the repo**, so the shipped file stays dependency-free.
 
 - **Run the app**: open `ulysses.html` directly in a browser (`file://` URL or double-click). No dev server required.
-- **Syntax-check after edits**: since there's no build step to catch errors, validate the `<script>` block's JS syntax manually via Node, e.g. `node -e "new Function(require('fs').readFileSync('ulysses.html','utf8').split('<script>')[1].split('</script>')[0])"` (adjust extraction as needed) before considering an edit done.
-- **No automated test suite exists.** Historically, verification was done via ad-hoc, throwaway Node + jsdom scripts (install jsdom in a scratch dir, `runScripts: 'dangerously'`, simulate real `MouseEvent`/`KeyboardEvent` sequences) — pure function calls miss the DOM-interaction bug classes listed below. Building a persistent jsdom-based test suite from these patterns is a known, explicitly recommended improvement.
+- **Syntax-check after every edit** (mandatory, ~1 s):
+  ```bash
+  node -e "const h=require('fs').readFileSync('ulysses.html','utf8');new Function(h.slice(h.indexOf('<script>')+8,h.lastIndexOf('</script>')));console.log('JS OK')"
+  ```
+- **Smoke-boot in jsdom** (catches runtime errors during init that the syntax check cannot):
+  ```bash
+  mkdir -p /tmp/uw-test && cd /tmp/uw-test && npm init -y >/dev/null && npm install jsdom --silent
+  ```
+  then load `ulysses.html` with `new JSDOM(html, {runScripts:'dangerously', pretendToBeVisual:true, url:'https://localhost/'})`, dispatch `DOMContentLoaded`, and assert that no `jsdomError`/`console.error` was captured on a `VirtualConsole`. Call `process.exit(0)` at the end — the app's 5-minute `setInterval` auto-backup timer otherwise keeps Node alive forever.
+  - Note on scope: only `function` declarations land on `window`; the ~929 top-level `const`s (`EXPORT_STYLES`, `CMD_REGISTRY`, `state`, …) are **not** reachable as `window.X` from a test. Test renderers by calling the exported functions and passing fixtures in (a `Proxy` returning `''` for every key works as a stand-in `style` object for `renderStyledHtml`).
+- **Interaction tests**: simulate real `MouseEvent`/`KeyboardEvent` sequences — pure function calls reliably hide the DOM-interaction bug classes listed below.
+- **No persistent automated test suite exists yet.** Building one from the patterns above is the single highest-value open improvement (`ANALYSIS.md`, proposal V-1).
+
+## Definition of Done
+
+A change to `ulysses.html` is done only when all of these hold:
+
+1. **Syntax check passes** (command above) — non-negotiable, there is no build step to catch a typo.
+2. **jsdom smoke boot reports 0 errors** — the app initialises cleanly.
+3. **The touched feature was exercised**, not just called: for UI/interaction changes, via simulated event sequences in jsdom; for renderer changes, by rendering a fixture through **all** affected pipelines (`renderMarkdown`, `renderStyledHtml`, `markdownToConfluence` — they are separate implementations, fixing one does not fix the others).
+4. **Cross-cutting registries updated** where applicable: new shortcut → `CMD_REGISTRY` only; new overlay → `isAnyOverlayOpen()` list **and** the Escape cascade; new colour → `applyTheme()` **and** all 6 `EDITOR_THEMES` entries.
+5. **The zero-dependency constraint still holds**: `grep -nE '(src|href)="https?://' ulysses.html` returns nothing, and no new file is required to run the app.
+6. **Docs follow the code**: architectural or data-model changes are reflected in `PROJEKTDOKUMENTATION.md` and, if they change how one works on the project, in this file.
+7. **Commit is scoped and in German or English consistently** with the surrounding history, on the agreed feature branch — never straight to `main`.
 
 ## Architecture (inside `ulysses.html`)
 
@@ -36,6 +72,7 @@ There is no build, lint, test, or install tooling — none exists and none shoul
   - All UI code should call the dispatcher `renderPreviewHtml(content, sheet)` (picks a pipeline based on `state.previewStyle`), never call `renderMarkdown` directly for anything that should respect the user's preview style.
 - **Command/shortcut layer**: `CMD_REGISTRY` (~55 entries: `{id, label, icon, cat, kbd?, fn}`) is the single source of truth feeding the command palette, the cheat sheet, and the Help panel's shortcut list. Register new shortcuts only here, not ad hoc.
 - **Init**: `document.addEventListener('DOMContentLoaded', ...)` wires up editor `input`/`keyup`/`click` handlers, debounced autosave (~800ms after typing stops), stats/outline re-rendering, etc.
+- **File library (`Dateibibliothek`, icon 🗂)**: a *second, independent* persistence path next to `localStorage` — sheets exported as standalone `.md` + `<name>.doclib.json` sidecar into a user-picked folder via the File System Access API, and searched/imported back from it. The format is deliberately 1:1 compatible with the sister project `doclib.html`. **Hard rule: U-Writer reads `.doclib-index.json` but must never write it** — the cache holds PDF/DOCX entries and `dirMeta` U-Writer doesn't understand, and writing it back would destroy doclib's index. Not to be confused with the *content-block* library (`state.contentBlocks`, icon 🧩). Full detail in `PROJEKTDOKUMENTATION.md` §8.
 - **UI structure**: `#appRoot` → `#topNav` (four top-level areas: Dokumente/Inhalte/Bearbeiten/Veröffentlichen, switched via `setTopArea()`) + `#app` (`#sidebar`, `#sheetlist`, `<main>` with editor/preview/outline/statusbar) + ~25 sibling overlay panels (command palette, help, export, backup, template editor, content-block library, metadata/property panels, theme picker, cheat sheet, context menu, etc.).
 
 ### Three distinct "variable" concepts — do not conflate
@@ -62,12 +99,32 @@ These are documented in `PROJEKTDOKUMENTATION.md` as classes of bugs that have a
 5. **Theme colors must be changed in two places**: `applyTheme()` (JS) sets CSS custom properties (`--bg-sidebar`, `--modal-bg`, `--text-sidebar`, etc.) at runtime from the active `EDITOR_THEMES` entry, overriding whatever the CSS `:root`/`[data-theme="dark"]` blocks say. Editing the CSS blocks alone is usually not enough — check `applyTheme()` and all 6 `EDITOR_THEMES` entries too. `hexToRgba()` is the shared helper for computing theme-crossing transparency at runtime rather than hardcoding RGBA per theme.
 6. **Always use `escHtml()`** for any dynamically interpolated string, including inside `value="..."` attributes — it escapes all five of `&<>"'`, not just text-content characters.
 
-## Known gaps (from `PROJEKTDOKUMENTATION.md`, still open)
+7. **Never widen `catch` into silence on a persistence path.** `loadState()`/`saveState()` currently swallow every non-quota error without telling the user — that is a known defect (`ANALYSIS.md` K-1/K-2), not a pattern to copy. Any new storage code must surface failure via `toast()`.
 
-- No accessibility attributes (`aria-*`, `role`) anywhere; tooltips are visual-only (`data-tooltip`).
+## Known gaps
+
+Verified against the code on 2026-08-13; full write-up with severities in `ANALYSIS.md`.
+
+**Defects (fix candidates, awaiting approval — see `ANALYSIS.md`)**
+- `loadState()` silently discards a corrupt `localStorage` payload and boots into an empty default state; the next `saveState()` then overwrites the still-recoverable raw data. Data-loss risk. (K-1)
+- `saveState()` reports only `QuotaExceededError`; every other write failure (unavailable storage, serialisation error) is silent, so the user keeps typing believing work is saved. (K-2)
+- Markdown links pass their URL into `href` unvalidated in `renderMarkdown` **and** `renderStyledHtml`, so `[x](javascript:…)` renders as a clickable script URL — reachable through imported `.md` files, content blocks, and file-library imports. (K-3)
+- The link regex `\(([^)]+)\)` truncates any URL containing `)` (e.g. Wikipedia links). (M-1)
+- Plain Markdown images `![alt](path.png)` render in no pipeline — only the internal `![alt](img:id …)` form does, so imported documents show raw syntax with no hint. (M-2)
+- `undoStacks[sheetId]` is never released when a sheet is permanently deleted; each entry holds up to `UNDO_LIMIT = 150` full document copies. (M-3)
+- No `window.onerror` / `unhandledrejection` handler at all, while ~230 `onclick=` attributes call functions directly — a rejected promise from an async handler is invisible to the user. (M-4)
+- `localStorage` holds the live state **plus** up to `BACKUP_MAX = 5` full state snapshots (`ulysses_auto_backup`), i.e. ~6× the state size against a 5–10 MB browser quota. (M-5)
+
+**Accepted / architectural**
+- No accessibility attributes (`aria-*`, `role`) anywhere — 0 occurrences; tooltips are visual-only (`data-tooltip`).
 - Only 3 `@media` rules total; the 3-column layout isn't designed for narrow/mobile screens.
-- No automated test suite (see Commands section above).
-- No preventive image-size/compression handling before `localStorage` writes (only a reactive `QuotaExceededError` warning).
-- `renderSheetList()` likely rebuilds the full list on every change; unverified at scale (hundreds of sheets).
+- No persistent automated test suite (see Commands section above).
+- No preventive image compression; only a 5 MB per-image guard plus the reactive quota warning.
+- `renderSheetList()` rebuilds the full list on every change (verified: 2 `innerHTML` assignments, no virtualisation). Fine at current scale, untested at hundreds of sheets.
 - No multi-device/cloud sync (intentional, given the offline constraint) and no in-app messaging that manual backup is the only transfer path.
-- PDF export has no auto-generated table of contents, despite an internal outline structure existing.
+- PDF export has no auto-generated table of contents, despite an internal outline structure existing (backlog LH-12).
+- Two functions are defined but never referenced: `exportSheet()`, `resolveImageSrc()`.
+
+## Backup & rollback
+
+Before any larger change: tag the current state (`git tag pre-<thema>-$(date +%Y%m%d)`) so a rollback is one `git checkout` away, and work on a `claude/<thema>` branch — `main` stays deployable at all times. The committed `ulysses.backup-*.html` snapshots are historical artefacts, **not** the rollback mechanism; git tags replace them. A `git revert` of a single scoped commit is the preferred undo; `--force` pushes to `main` are never appropriate here.
