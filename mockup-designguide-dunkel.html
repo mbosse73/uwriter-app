@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>U-Writer – Mockup (Dunkelmodus, UI-Designguide)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+  (function(){
+    try{
+      if(localStorage.getItem('mockupTheme')==='light'){
+        document.documentElement.setAttribute('data-theme','light');
+      }
+    }catch(e){}
+  })();
+</script>
+<style>
+/* ══════════════════════════════════════════════════════════════
+   Farbsystem — 1:1 aus UI-DESIGNGUIDE.md Abschnitt 2 übernommen
+   ══════════════════════════════════════════════════════════════ */
+:root{
+  color-scheme: dark;
+  --tint:255,255,255;
+
+  --bg:transparent;
+  --glass-bg:rgba(var(--tint),0.10);
+  --glass-bg-mid:rgba(var(--tint),0.14);
+  --glass-bg-strong:rgba(var(--tint),0.20);
+  --glass-border:rgba(var(--tint),0.22);
+  --glass-border-soft:rgba(var(--tint),0.12);
+  --glass-shadow:0 8px 32px rgba(0,0,0,0.28), 0 1.5px 4px rgba(0,0,0,0.18);
+  --glass-shadow-sm:0 4px 16px rgba(0,0,0,0.20);
+  --glass-blur:blur(18px);
+  --glass-blur-sm:blur(10px);
+
+  --text:rgba(var(--tint),0.95);
+  --text-2:rgba(var(--tint),0.72);
+  --muted:rgba(var(--tint),0.45);
+  --card:rgba(var(--tint),0.10);
+  --border:rgba(var(--tint),0.20);
+  --border-soft:rgba(var(--tint),0.10);
+
+  --accent:#60a5fa;
+  --accent-light:rgba(96,165,250,0.18);
+  --high:#f87171;
+  --high-light:rgba(248,113,113,0.18);
+  --medium:#fbbf24;
+  --medium-light:rgba(251,191,36,0.18);
+  --low:#34d399;
+  --low-light:rgba(52,211,153,0.18);
+
+  --warn-bg:rgba(251,191,36,0.15);
+  --warn-bg-strong:rgba(251,191,36,0.25);
+  --warn-border:rgba(251,191,36,0.40);
+  --warn-text:#fde68a;
+
+  --info-border:rgba(96,165,250,0.40);
+  --danger-border:rgba(248,113,113,0.40);
+  --success-border:rgba(52,211,153,0.40);
+  --purple:#a78bfa;
+  --purple-light:rgba(167,139,250,0.18);
+  --purple-border:rgba(167,139,250,0.40);
+
+  --radius:12px;
+  --shadow:var(--glass-shadow-sm);
+  --kbd-shadow-b:0 1px 0 rgba(0,0,0,0.35);
+
+  --panel-bg:rgba(13,26,54,0.86);
+  --panel-backdrop:rgba(6,12,26,0.55);
+
+  --bg-gradient:
+    radial-gradient(ellipse 80% 60% at 10% 0%,   #1e3a5f 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 90% 5%,   #0f2744 0%, transparent 55%),
+    radial-gradient(ellipse 50% 70% at 50% 100%, #0c1e3a 0%, transparent 65%),
+    radial-gradient(ellipse 40% 40% at 80% 60%,  #1a2f55 0%, transparent 50%),
+    linear-gradient(160deg, #0d1f3c 0%, #0a1628 40%, #0c2040 100%);
+}
+:root[data-theme="light"]{
+  color-scheme: light;
+  --tint:29,29,31;
+  --glass-bg:rgba(255,255,255,0.55);
+  --glass-bg-mid:rgba(255,255,255,0.74);
+  --glass-bg-strong:rgba(255,255,255,0.92);
+  --glass-border:rgba(29,29,31,0.10);
+  --glass-border-soft:rgba(29,29,31,0.06);
+  --glass-shadow:0 6px 20px rgba(29,29,31,0.09), 0 1.5px 4px rgba(29,29,31,0.05);
+  --glass-shadow-sm:0 1px 3px rgba(29,29,31,0.07), 0 1px 2px rgba(29,29,31,0.04);
+  --radius:14px;
+  --card:rgba(255,255,255,0.8);
+  --border:rgba(29,29,31,0.13);
+  --border-soft:rgba(29,29,31,0.08);
+  --accent:#0071e3;
+  --accent-light:rgba(0,113,227,0.10);
+  --high:#dc2626;
+  --high-light:rgba(220,38,38,0.10);
+  --medium:#b45309;
+  --medium-light:rgba(180,83,9,0.12);
+  --low:#059669;
+  --low-light:rgba(5,150,105,0.10);
+  --warn-bg:rgba(180,83,9,0.10);
+  --warn-bg-strong:rgba(180,83,9,0.18);
+  --warn-border:rgba(180,83,9,0.35);
+  --warn-text:#7a4a00;
+  --info-border:rgba(0,113,227,0.35);
+  --danger-border:rgba(220,38,38,0.35);
+  --success-border:rgba(5,150,105,0.35);
+  --purple:#7c3aed;
+  --purple-light:rgba(124,58,237,0.12);
+  --purple-border:rgba(124,58,237,0.35);
+  --kbd-shadow-b:0 1px 0 rgba(29,29,31,0.12);
+  --panel-bg:rgba(255,255,255,0.92);
+  --panel-backdrop:rgba(29,29,31,0.30);
+  --bg-gradient:linear-gradient(180deg, #f7f8fa 0%, #eef0f2 100%);
+}
+[data-theme="light"] .toast,
+[data-theme="light"] .dropdown-menu,
+[data-theme="light"] .outline-panel{
+  box-shadow:0 14px 38px rgba(29,29,31,0.16), 0 2px 6px rgba(29,29,31,0.07);
+}
+[data-theme="light"] .btn:hover{ box-shadow:0 6px 18px rgba(29,29,31,0.14); }
+
+/* ══════════════════════════════════════════════════════════════
+   Basis
+   ══════════════════════════════════════════════════════════════ */
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  font-size:14px;line-height:1.55;
+  color:var(--text);
+  min-height:100vh;
+  background:var(--bg-gradient);
+  background-attachment:fixed;
+  transition:background .25s ease;
+  overflow:hidden;
+}
+button{font-family:inherit;}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+/* Mockup-Badge */
+.mockup-badge{
+  position:fixed;top:10px;right:14px;z-index:999;
+  background:var(--panel-bg);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border:1px solid var(--glass-border);border-radius:999px;
+  padding:6px 14px;font-size:11.5px;font-weight:600;color:var(--text);
+  box-shadow:var(--glass-shadow-sm);letter-spacing:.02em;
+  display:flex;align-items:center;gap:7px;
+}
+.mockup-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);}
+
+/* ══════════════════════════════════════════════════════════════
+   App-Gerüst
+   ══════════════════════════════════════════════════════════════ */
+#appRoot{display:flex;flex-direction:column;height:100vh;width:100vw;overflow:hidden;}
+
+#topNav{
+  display:flex;align-items:center;gap:22px;
+  height:46px;padding:0 16px;flex-shrink:0;
+  background:var(--glass-bg-mid);
+  border-bottom:1px solid var(--glass-border-soft);
+  backdrop-filter:var(--glass-blur-sm);-webkit-backdrop-filter:var(--glass-blur-sm);
+}
+.topnav-brand{font-weight:700;font-size:14.5px;color:var(--accent);letter-spacing:.01em;}
+.topnav-areas{display:flex;gap:4px;}
+.topnav-btn{
+  display:flex;align-items:center;gap:7px;
+  background:transparent;border:1px solid transparent;border-radius:8px;
+  padding:6px 12px;font-size:13px;color:var(--text-2);cursor:pointer;
+  transition:background .14s,color .14s,border-color .14s;
+}
+.topnav-btn:hover{background:var(--glass-bg);color:var(--text);}
+.topnav-btn.active{background:var(--accent-light);color:var(--accent);font-weight:600;border-color:var(--accent-border,rgba(96,165,250,.35));}
+.topnav-icon{font-size:13px;}
+
+#app{display:flex;flex:1;min-height:0;}
+
+/* ── Sidebar (docked → tint-Glas, kein panel-bg) ── */
+#sidebar{
+  width:210px;flex-shrink:0;display:flex;flex-direction:column;
+  background:var(--glass-bg);
+  border-right:1px solid var(--glass-border-soft);
+}
+.sidebar-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 14px 10px;
+}
+.sidebar-title{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);}
+.sidebar-actions{display:flex;gap:4px;}
+.sidebar-btn{
+  background:var(--glass-bg-mid);border:1px solid var(--glass-border);border-radius:7px;
+  width:26px;height:26px;font-size:12px;color:var(--text-2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .14s,color .14s;
+}
+.sidebar-btn:hover{background:var(--glass-bg-strong);color:var(--text);}
+.library-list{flex:1;overflow-y:auto;padding:2px 10px;}
+.group-item{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 9px;border-radius:8px;font-size:13px;color:var(--text-2);
+  cursor:pointer;margin-bottom:2px;transition:background .1s,color .1s;
+}
+.group-item:hover{background:rgba(var(--tint),0.08);color:var(--text);}
+.group-item.active{background:var(--accent-light);color:var(--accent);font-weight:600;}
+.group-item .icon{font-size:13px;width:16px;text-align:center;}
+.group-item .label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.group-item .count{font-size:11.5px;color:var(--muted);}
+.group-item.active .count{color:var(--accent);}
+.sidebar-divider{height:1px;background:var(--glass-border-soft);margin:10px 4px;}
+.sidebar-section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:0 9px 6px;}
+.tag-cloud{display:flex;flex-wrap:wrap;gap:6px;padding:0 9px 8px;}
+.tag-cloud-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  border-radius:999px;padding:3px 9px;font-size:11.5px;font-weight:600;
+  cursor:pointer;transition:filter .12s;
+}
+.tag-cloud-pill:hover{filter:brightness(1.1);}
+.tag-cloud-pill .tag-count{font-size:10.5px;opacity:.75;font-weight:700;}
+.sidebar-bottom{padding:10px;border-top:1px solid var(--glass-border-soft);display:flex;flex-direction:column;gap:4px;}
+.sidebar-bottom-btn{
+  display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+  background:transparent;border:none;border-radius:8px;padding:8px 9px;
+  font-size:12.5px;color:var(--text-2);cursor:pointer;transition:background .12s,color .12s;
+}
+.sidebar-bottom-btn:hover{background:var(--glass-bg-mid);color:var(--text);}
+
+/* ── Sheetlist (docked → tint-Glas) ── */
+#sheetlist{
+  width:290px;flex-shrink:0;display:flex;flex-direction:column;
+  background:var(--glass-bg);
+  border-right:1px solid var(--glass-border-soft);
+}
+.sheetlist-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 14px 10px;
+}
+.sheetlist-title{font-size:15px;font-weight:700;color:var(--text);}
+.sheetlist-actions{display:flex;gap:4px;align-items:center;position:relative;}
+.sheetlist-btn{
+  background:var(--glass-bg-mid);border:1px solid var(--glass-border);border-radius:7px;
+  width:26px;height:26px;font-size:12px;color:var(--text-2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .14s,color .14s;
+}
+.sheetlist-btn:hover{background:var(--glass-bg-strong);color:var(--text);}
+.tpl-menu-wrap{position:relative;}
+
+/* Dropdown-Menü — solide --panel-bg, NICHT --glass-bg (kann über Editor/Vorschau schweben) */
+.dropdown-menu{
+  position:absolute;top:32px;right:0;z-index:50;
+  min-width:190px;
+  background:var(--panel-bg);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border:1px solid var(--glass-border);border-radius:var(--radius);
+  box-shadow:var(--glass-shadow);
+  padding:5px;display:flex;flex-direction:column;
+}
+.dropdown-menu .dd-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 9px 4px;}
+.dropdown-menu button{
+  background:transparent;border:none;text-align:left;cursor:pointer;
+  padding:8px 11px;border-radius:8px;font-size:13px;font-weight:500;
+  color:#fff;display:flex;align-items:center;gap:9px;width:100%;
+}
+.dropdown-menu button:hover{background:rgba(255,255,255,.12);}
+[data-theme="light"] .dropdown-menu button{color:var(--text);}
+[data-theme="light"] .dropdown-menu button:hover{background:rgba(29,29,31,.08);}
+
+.sheetlist-search{padding:0 14px 10px;}
+.sheetlist-search-wrap{position:relative;display:flex;align-items:center;}
+.search-icon{position:absolute;left:11px;font-size:13px;color:var(--muted);}
+#search{
+  width:100%;padding:9px 12px 9px 30px;
+  background:var(--glass-bg-mid);
+  border:1px solid var(--glass-border);
+  border-radius:var(--radius);
+  font-size:13px;color:var(--text);
+  backdrop-filter:var(--glass-blur-sm);-webkit-backdrop-filter:var(--glass-blur-sm);
+  box-shadow:var(--glass-shadow-sm);
+}
+#search::placeholder{color:var(--muted);}
+#search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(96,165,250,.22);}
+
+.sheet-items{flex:1;overflow-y:auto;padding:0 10px 10px;}
+.sheet-item{
+  position:relative;overflow:hidden;border-radius:9px;
+  background:rgba(var(--tint),0.06);
+  border:1px solid rgba(var(--tint),0.08);
+  padding:10px 12px 10px 15px;margin-bottom:6px;cursor:pointer;
+  transition:background .1s;
+}
+.sheet-item::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--bar-color,var(--muted));
+}
+.sheet-item:hover{background:rgba(var(--tint),0.11);}
+.sheet-item.active{background:var(--accent-light);border-color:rgba(96,165,250,.35);}
+.sheet-item.active::before{background:var(--accent);width:3px;}
+.sheet-item-title{font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:6px;}
+.sheet-item-preview{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:6px;}
+.sheet-item-meta{font-size:11px;color:var(--muted);display:flex;gap:8px;}
+.sheet-item-keywords{margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;}
+.kw-pill{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:999px;background:var(--purple-light);color:var(--purple);}
+.fav-star{color:var(--medium);font-size:11px;}
+
+/* ── Editor-Bereich ── */
+#editor-pane{flex:1;display:flex;flex-direction:column;min-width:0;background:transparent;}
+.editor-toolbar{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:8px 14px;flex-shrink:0;
+  border-bottom:1px solid var(--glass-border-soft);
+  background:var(--glass-bg);
+}
+.toolbar-group{display:flex;align-items:center;gap:3px;}
+.toolbar-btn{
+  background:transparent;border:1px solid transparent;border-radius:7px;
+  width:30px;height:28px;font-size:13px;color:var(--text-2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.toolbar-btn:hover{background:var(--glass-bg-mid);border-color:var(--glass-border);color:var(--text);}
+.toolbar-divider{width:1px;height:20px;background:var(--glass-border-soft);margin:0 4px;}
+.toolbar-spacer{flex:1;}
+.view-segment{display:flex;background:var(--glass-bg-mid);border:1px solid var(--glass-border);border-radius:8px;padding:2px;gap:1px;}
+.view-segment-btn{
+  width:28px;height:24px;display:flex;align-items:center;justify-content:center;
+  border-radius:6px;font-size:12.5px;color:var(--text-2);cursor:pointer;transition:background .12s,color .12s;
+}
+.view-segment-btn:hover{color:var(--text);}
+.view-segment-btn.active{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(96,165,250,.4);}
+
+.editor-body-row{display:flex;flex:1;min-height:0;}
+.editor-container{flex:1;overflow-y:auto;padding:36px 48px;min-width:0;}
+.editor-doc{max-width:680px;margin:0 auto;font-size:15.5px;line-height:1.75;color:var(--text-2);}
+.editor-doc .h1{font-size:23px;font-weight:700;color:var(--text);margin-bottom:14px;}
+.editor-doc .h2{font-size:18px;font-weight:700;color:var(--text);margin:22px 0 10px;}
+.editor-doc .md-syntax{color:var(--accent);opacity:.55;font-weight:600;}
+.editor-doc .md-bold{color:var(--text);font-weight:700;}
+.editor-doc .md-italic{color:var(--text-2);font-style:italic;}
+.editor-doc p{margin-bottom:14px;}
+.editor-doc .md-quote{border-left:3px solid var(--purple-border);padding-left:14px;color:var(--muted);font-style:italic;margin-bottom:14px;}
+.editor-doc .cursor-blink{display:inline-block;width:2px;height:17px;background:var(--accent);vertical-align:-3px;animation:blink 1s step-start infinite;}
+@keyframes blink{50%{opacity:0;}}
+
+/* ── Gliederung (docked im Editor-Bereich → tint-Glas) ── */
+.outline-panel{
+  width:230px;flex-shrink:0;overflow-y:auto;
+  background:var(--glass-bg);
+  border-left:1px solid var(--glass-border-soft);
+}
+.outline-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 14px;border-bottom:1px solid var(--glass-border-soft);
+}
+.outline-title{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--purple);}
+.outline-close{background:transparent;border:none;color:var(--muted);font-size:12px;cursor:pointer;}
+.outline-body{padding:8px;}
+.outline-item{
+  padding:6px 9px;border-radius:7px;font-size:12.5px;color:var(--text-2);
+  cursor:pointer;margin-bottom:1px;transition:background .1s,color .1s;
+  border-left:2px solid transparent;
+}
+.outline-item:hover{background:rgba(var(--tint),0.08);}
+.outline-item.lvl2{padding-left:20px;font-size:12px;color:var(--muted);}
+.outline-item.active{background:var(--accent-light);color:var(--accent);border-left-color:var(--accent);font-weight:600;}
+
+/* ── Statusbar ── */
+#statusbar{
+  display:flex;align-items:center;justify-content:space-between;
+  height:30px;flex-shrink:0;padding:0 14px;
+  border-top:1px solid var(--glass-border-soft);
+  background:var(--glass-bg);
+  font-size:11.5px;color:var(--muted);
+}
+.status-left{display:flex;gap:14px;}
+.status-item{display:flex;align-items:center;gap:4px;}
+#statusSaved{color:var(--low);font-weight:600;}
+
+/* ── Toast ── */
+.toast{
+  position:fixed;bottom:20px;right:20px;z-index:80;
+  display:flex;align-items:center;gap:10px;
+  background:var(--panel-bg);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border:1px solid var(--glass-border);border-radius:10px;
+  padding:11px 16px 11px 13px;box-shadow:var(--glass-shadow);
+  font-size:13px;color:#fff;
+}
+[data-theme="light"] .toast{color:var(--text);}
+.toast::before{content:'';display:block;width:3px;align-self:stretch;border-radius:2px;background:var(--low);margin-right:2px;}
+
+/* Theme-Toggle-Button (Demo) */
+.theme-toggle{
+  position:fixed;bottom:20px;left:20px;z-index:80;
+}
+</style>
+</head>
+<body>
+
+<div class="mockup-badge"><span class="dot"></span>Mockup · Dunkelmodus · UI-Designguide.md</div>
+
+<div id="appRoot">
+  <nav id="topNav">
+    <div class="topnav-brand">U-Writer</div>
+    <div class="topnav-areas">
+      <button class="topnav-btn active"><span class="topnav-icon">📁</span><span>Dokumente</span></button>
+      <button class="topnav-btn"><span class="topnav-icon">🧩</span><span>Inhalte</span></button>
+      <button class="topnav-btn"><span class="topnav-icon">✎</span><span>Bearbeiten</span></button>
+      <button class="topnav-btn"><span class="topnav-icon">⬆</span><span>Veröffentlichen</span></button>
+    </div>
+  </nav>
+
+  <div id="app">
+    <!-- SIDEBAR -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Dokumente</span>
+        <div class="sidebar-actions">
+          <button class="sidebar-btn">📥</button>
+          <button class="sidebar-btn">✚</button>
+        </div>
+      </div>
+      <div class="library-list">
+        <div class="group-item"><span class="icon">📄</span><span class="label">Alle</span><span class="count">12</span></div>
+        <div class="group-item active"><span class="icon">📖</span><span class="label">Roman</span><span class="count">5</span></div>
+        <div class="group-item"><span class="icon">📝</span><span class="label">Kurzgeschichten</span><span class="count">4</span></div>
+        <div class="group-item"><span class="icon">🗒</span><span class="label">Notizen</span><span class="count">3</span></div>
+        <div class="group-item" style="margin-top:8px;opacity:.7"><span class="icon">🗑</span><span class="label">Papierkorb</span><span class="count">2</span></div>
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-section-label">Tags</div>
+        <div class="tag-cloud">
+          <span class="tag-cloud-pill" style="background:var(--accent-light);color:var(--accent)">Kapitel 1<span class="tag-count">3</span></span>
+          <span class="tag-cloud-pill" style="background:var(--low-light);color:var(--low)">Überarbeitung<span class="tag-count">5</span></span>
+          <span class="tag-cloud-pill" style="background:var(--medium-light);color:var(--medium)">Entwurf<span class="tag-count">2</span></span>
+          <span class="tag-cloud-pill" style="background:var(--purple-light);color:var(--purple)">Recherche<span class="tag-count">1</span></span>
+        </div>
+      </div>
+      <div class="sidebar-bottom">
+        <button class="sidebar-bottom-btn"><span>💾</span><span>Backup &amp; Restore</span></button>
+        <button class="sidebar-bottom-btn"><span>🎨</span><span>Theme: Standard</span></button>
+      </div>
+    </aside>
+
+    <!-- SHEETLIST -->
+    <section id="sheetlist">
+      <div class="sheetlist-header">
+        <span class="sheetlist-title">Roman</span>
+        <div class="sheetlist-actions">
+          <button class="sheetlist-btn">✚</button>
+          <div class="tpl-menu-wrap">
+            <button class="sheetlist-btn" style="font-size:10px">▾</button>
+            <div class="dropdown-menu">
+              <div class="dd-label">Neu aus Vorlage</div>
+              <button>📄 Leeres Blatt</button>
+              <button>📖 Kapitelvorlage</button>
+              <button>🎬 Szenenvorlage</button>
+            </div>
+          </div>
+          <button class="sheetlist-btn">⇅</button>
+        </div>
+      </div>
+      <div class="sheetlist-search">
+        <div class="sheetlist-search-wrap">
+          <span class="search-icon">⌕</span>
+          <input type="text" id="search" placeholder="Suchen…" readonly>
+        </div>
+      </div>
+      <div class="sheet-items">
+        <div class="sheet-item active" style="--bar-color:var(--accent)">
+          <div class="sheet-item-title">Kapitel 3 – Der Aufbruch <span class="fav-star">★</span></div>
+          <div class="sheet-item-preview">Der Regen hatte die ganze Nacht nicht aufgehört, als Elena…</div>
+          <div class="sheet-item-meta"><span>12.07.2026</span><span>842 Wörter</span></div>
+          <div class="sheet-item-keywords"><span class="kw-pill">Entwurf</span></div>
+        </div>
+        <div class="sheet-item" style="--bar-color:var(--low)">
+          <div class="sheet-item-title">Kapitel 2 – Die Ankunft</div>
+          <div class="sheet-item-preview">Als sie den Hafen erreichten, lag bereits Nebel über den…</div>
+          <div class="sheet-item-meta"><span>10.07.2026</span><span>1204 Wörter</span></div>
+          <div class="sheet-item-keywords"><span class="kw-pill">Überarbeitung</span></div>
+        </div>
+        <div class="sheet-item" style="--bar-color:var(--accent)">
+          <div class="sheet-item-title">Kapitel 1 – Der Anfang</div>
+          <div class="sheet-item-preview">Es war ein gewöhnlicher Dienstagmorgen, als alles begann…</div>
+          <div class="sheet-item-meta"><span>08.07.2026</span><span>956 Wörter</span></div>
+          <div class="sheet-item-keywords"><span class="kw-pill">Kapitel 1</span></div>
+        </div>
+        <div class="sheet-item" style="--bar-color:var(--muted)">
+          <div class="sheet-item-title">Nebenfigur: Thomas</div>
+          <div class="sheet-item-preview">Geboren 1988, aufgewachsen in der Nähe von Lübeck…</div>
+          <div class="sheet-item-meta"><span>05.07.2026</span><span>310 Wörter</span></div>
+        </div>
+        <div class="sheet-item" style="--bar-color:var(--purple)">
+          <div class="sheet-item-title">Rückblende – Der Sturm</div>
+          <div class="sheet-item-preview">Fünfzehn Jahre zuvor. Der Himmel hatte sich schon am…</div>
+          <div class="sheet-item-meta"><span>02.07.2026</span><span>612 Wörter</span></div>
+          <div class="sheet-item-keywords"><span class="kw-pill">Recherche</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EDITOR -->
+    <main id="editor-pane">
+      <div class="editor-toolbar">
+        <div class="toolbar-group"><button class="toolbar-btn">⟨⟩</button></div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <button class="toolbar-btn" style="opacity:.35">↶</button>
+          <button class="toolbar-btn" style="opacity:.35">↷</button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <button class="toolbar-btn" style="font-size:12px">T</button>
+          <button class="toolbar-btn"><b>H1</b></button>
+          <button class="toolbar-btn"><b>H2</b></button>
+          <button class="toolbar-btn"><b>H3</b></button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <button class="toolbar-btn"><b>B</b></button>
+          <button class="toolbar-btn"><i>I</i></button>
+          <button class="toolbar-btn" style="font-family:'SF Mono',Consolas,monospace">&lt;/&gt;</button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <button class="toolbar-btn">☰</button>
+          <button class="toolbar-btn">❝</button>
+          <button class="toolbar-btn">▦</button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group"><button class="toolbar-btn">✚</button></div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group"><button class="toolbar-btn">🧩</button></div>
+        <span class="toolbar-spacer"></span>
+        <div class="toolbar-group">
+          <button class="toolbar-btn">¶</button>
+          <div class="view-segment">
+            <div class="view-segment-btn active">✎</div>
+            <div class="view-segment-btn">◎</div>
+            <div class="view-segment-btn">⛶</div>
+            <div class="view-segment-btn">👁</div>
+          </div>
+          <button class="toolbar-btn" style="font-size:11px">⋯</button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group"><button class="toolbar-btn">?</button></div>
+      </div>
+
+      <div class="editor-body-row">
+        <div class="editor-container">
+          <div class="editor-doc">
+            <div class="h1"><span class="md-syntax"># </span>Kapitel 3 – Der Aufbruch</div>
+            <p>Der Regen hatte die ganze Nacht nicht aufgehört, als Elena endlich die Tür öffnete. Sie wusste, dass es <span class="md-bold"><span class="md-syntax">**</span>keinen Weg zurück<span class="md-syntax">**</span></span> mehr gab – nicht nach allem, was geschehen war.</p>
+            <div class="h2"><span class="md-syntax">## </span>Die Reise beginnt</div>
+            <p>Der Bahnhof lag verlassen, als sie ankam. Nur <span class="md-italic"><span class="md-syntax">*</span>ein einziges Licht<span class="md-syntax">*</span></span> brannte noch am Ende des Gleises, flackernd, als könnte es jeden Moment erlöschen.</p>
+            <div class="md-quote">„Manche Wege beginnen erst, wenn man aufhört, sie zu suchen.“</div>
+            <p>Sie zog den Mantel enger und ging weiter, ohne sich <span class="cursor-blink"></span></p>
+          </div>
+        </div>
+
+        <aside class="outline-panel">
+          <div class="outline-header">
+            <span class="outline-title">Gliederung</span>
+            <button class="outline-close">✕</button>
+          </div>
+          <div class="outline-body">
+            <div class="outline-item active">Kapitel 3 – Der Aufbruch</div>
+            <div class="outline-item lvl2">Die Reise beginnt</div>
+            <div class="outline-item lvl2">Der Wald</div>
+            <div class="outline-item lvl2">Ankunft im Dorf</div>
+            <div class="outline-item">Kapitel 2 – Die Ankunft</div>
+            <div class="outline-item">Kapitel 1 – Der Anfang</div>
+          </div>
+        </aside>
+      </div>
+
+      <div id="statusbar">
+        <div class="status-left">
+          <span class="status-item">842 Wörter</span>
+          <span class="status-item">5023 Zeichen</span>
+          <span class="status-item">96 Zeilen</span>
+        </div>
+        <div class="status-right">
+          <span class="status-item" id="statusSaved">✓ Gespeichert</span>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="toast">Automatisches Backup erstellt</div>
+
+<button class="theme-toggle btn" id="themeToggleBtn" onclick="toggleTheme()">☀ Hell</button>
+
+<script>
+const THEME_KEY = 'mockupTheme';
+function applyTheme(theme){
+  if(theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
+  const btn = document.getElementById('themeToggleBtn');
+  if(btn){
+    btn.textContent = theme === 'light' ? '☀ Hell' : '🌙 Dunkel';
+    btn.title = theme === 'light' ? 'Zu Dunkelmodus wechseln' : 'Zu Hellmodus wechseln';
+  }
+}
+function toggleTheme(){
+  const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  const next = current === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+}
+document.addEventListener('keydown', e=>{
+  if(e.altKey && e.key.toLowerCase()==='m'){ e.preventDefault(); toggleTheme(); }
+});
+applyTheme(document.documentElement.getAttribute('data-theme')==='light' ? 'light' : 'dark');
+</script>
+<style>
+.btn.theme-toggle{
+  background:var(--glass-bg-mid);border:1px solid var(--glass-border);border-radius:8px;
+  padding:7px 13px;font-size:13px;cursor:pointer;color:var(--text);
+  box-shadow:var(--glass-shadow-sm);
+  backdrop-filter:var(--glass-blur-sm);-webkit-backdrop-filter:var(--glass-blur-sm);
+  transition:background .14s,border-color .14s,box-shadow .14s;
+}
+.btn.theme-toggle:hover{background:var(--glass-bg-strong);border-color:rgba(var(--tint),0.35);}
+</style>
+</body>
+</html>
